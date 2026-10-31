@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [36])
 class ExampleRobolectricTest {
 
     @Test
@@ -145,5 +145,59 @@ class ExampleRobolectricTest {
         }
         val synthFolder = folders.first { it.name == "Synthwave" }
         assertEquals(2, synthFolder.songCount)
+    }
+
+    @Test
+    fun `app settings default values test`() {
+        val settings = com.example.model.AppSettings()
+        assertTrue(settings.autoPauseOnCallAndUnplug)
+        assertTrue(settings.headsetDoublePressEnabled)
+        assertTrue(!settings.shakeToSkipEnabled)
+        assertTrue(settings.filterShortAudioEnabled)
+        assertEquals(60, settings.minAudioDurationSec)
+        assertTrue(settings.blacklistedFolders.isEmpty())
+    }
+
+    @Test
+    fun `short audio filter logic test`() {
+        val shortSong = Song(id = "1", title = "Notification Ring", durationMs = 15000L, uriString = "u1")
+        val longSong = Song(id = "2", title = "Full Track", durationMs = 180000L, uriString = "u2")
+
+        val list = listOf(shortSong, longSong)
+        val filtered = list.filter { it.durationMs >= 60 * 1000L }
+
+        assertEquals(1, filtered.size)
+        assertEquals("Full Track", filtered.first().title)
+    }
+
+    @Test
+    fun `folder blacklist filtering test`() {
+        val blacklisted = setOf("whatsapp audio", "ringtones")
+        val songs = listOf(
+            Song(id = "1", title = "Chat Audio", folderName = "WhatsApp Audio", uriString = "u1"),
+            Song(id = "2", title = "Album Song", folderName = "Music", uriString = "u2")
+        )
+
+        val nonBlacklisted = songs.filter { song ->
+            val folder = song.folderName.trim().lowercase()
+            !blacklisted.any { it.trim().lowercase() == folder }
+        }
+
+        assertEquals(1, nonBlacklisted.size)
+        assertEquals("Album Song", nonBlacklisted.first().title)
+    }
+
+    @Test
+    fun `duplicate song detection grouping test`() {
+        val songA1 = Song(id = "1", title = "Midnight City", artist = "M83", durationMs = 240000L, uriString = "u1")
+        val songA2 = Song(id = "2", title = "midnight city", artist = "m83", durationMs = 240500L, uriString = "u2")
+        val songB = Song(id = "3", title = "Stargazing", artist = "Kygo", durationMs = 210000L, uriString = "u3")
+
+        val songs = listOf(songA1, songA2, songB)
+        val duplicates = songs.groupBy { "${it.title.trim().lowercase()}__${it.artist.trim().lowercase()}" }
+            .filter { it.value.size > 1 }
+
+        assertEquals(1, duplicates.size)
+        assertEquals(2, duplicates.values.first().size)
     }
 }

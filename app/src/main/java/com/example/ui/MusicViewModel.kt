@@ -123,6 +123,83 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _showFolderBlacklistDialog = MutableStateFlow(false)
     val showFolderBlacklistDialog: StateFlow<Boolean> = _showFolderBlacklistDialog.asStateFlow()
 
+    val vaultManager = com.example.util.VaultManager(application)
+    val achievementManager = com.example.util.AchievementManager(application)
+
+    private val _songForMoodTag = MutableStateFlow<Song?>(null)
+    val songForMoodTag: StateFlow<Song?> = _songForMoodTag.asStateFlow()
+
+    private val _showVaultDialog = MutableStateFlow(false)
+    val showVaultDialog: StateFlow<Boolean> = _showVaultDialog.asStateFlow()
+
+    private val _showStreamUrlDialog = MutableStateFlow(false)
+    val showStreamUrlDialog: StateFlow<Boolean> = _showStreamUrlDialog.asStateFlow()
+
+    private val _showWrappedDialog = MutableStateFlow(false)
+    val showWrappedDialog: StateFlow<Boolean> = _showWrappedDialog.asStateFlow()
+
+    private val _showAchievementsDialog = MutableStateFlow(false)
+    val showAchievementsDialog: StateFlow<Boolean> = _showAchievementsDialog.asStateFlow()
+
+    fun openMoodTagDialog(song: Song) {
+        _songForMoodTag.value = song
+    }
+
+    fun closeMoodTagDialog() {
+        _songForMoodTag.value = null
+    }
+
+    fun setSongMoods(songId: String, moods: List<String>) {
+        viewModelScope.launch {
+            repository.setSongMoods(songId, moods)
+            _songs.value = repository.loadSongs()
+            _playlists.value = repository.loadPlaylists()
+        }
+    }
+
+    fun openVaultDialog() {
+        _showVaultDialog.value = true
+    }
+
+    fun closeVaultDialog() {
+        _showVaultDialog.value = false
+    }
+
+    fun openStreamUrlDialog() {
+        _showStreamUrlDialog.value = true
+    }
+
+    fun closeStreamUrlDialog() {
+        _showStreamUrlDialog.value = false
+    }
+
+    fun openWrappedDialog() {
+        _showWrappedDialog.value = true
+    }
+
+    fun closeWrappedDialog() {
+        _showWrappedDialog.value = false
+    }
+
+    fun openAchievementsDialog() {
+        _showAchievementsDialog.value = true
+    }
+
+    fun closeAchievementsDialog() {
+        _showAchievementsDialog.value = false
+    }
+
+    fun playNetworkStream(url: String, title: String) {
+        val streamVideo = VideoItem(
+            id = UUID.randomUUID().toString(),
+            title = title.ifBlank { "Network Stream" },
+            uriString = url,
+            durationMs = 0L,
+            dateAdded = System.currentTimeMillis()
+        )
+        selectVideo(streamVideo)
+    }
+
     fun setShowEqualizer(show: Boolean) {
         _showEqualizer.value = show
     }
@@ -712,12 +789,38 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Equalizer Passthrough
     fun setEqualizerEnabled(enabled: Boolean) = playbackManager.equalizerManager.setEnabled(enabled)
     fun setBassBoost(level: Int) = playbackManager.equalizerManager.setBassBoost(level)
+    fun setVirtualizer(level: Int) = playbackManager.equalizerManager.setVirtualizer(level)
+    fun setVolumeNormalization(enabled: Boolean) = playbackManager.equalizerManager.setVolumeNormalization(enabled)
     fun setEqualizerBandLevel(bandIndex: Int, level: Int) = playbackManager.equalizerManager.setBandLevel(bandIndex, level)
     fun selectEqualizerPreset(preset: String) = playbackManager.equalizerManager.selectPreset(preset)
 
     // Sleep Timer Passthrough
     fun setSleepTimer(minutes: Int) = playbackManager.setSleepTimer(minutes)
     fun cancelSleepTimer() = playbackManager.cancelSleepTimer()
+
+    // Playback Speed & Pitch
+    fun setPlaybackSpeedAndPitch(speed: Float, pitch: Float) = playbackManager.setPlaybackSpeedAndPitch(speed, pitch)
+
+    // New Settings Toggles
+    fun setFadeInOutEnabled(enabled: Boolean) {
+        repository.setFadeInOutEnabled(enabled)
+        _appSettings.value = repository.getAppSettings()
+    }
+
+    fun setAutoFetchLyricsEnabled(enabled: Boolean) {
+        repository.setAutoFetchLyricsEnabled(enabled)
+        _appSettings.value = repository.getAppSettings()
+    }
+
+    fun setBackgroundVideoAudioOnly(enabled: Boolean) {
+        repository.setBackgroundVideoAudioOnly(enabled)
+        _appSettings.value = repository.getAppSettings()
+    }
+
+    fun setReduceAnimations(enabled: Boolean) {
+        repository.setReduceAnimations(enabled)
+        _appSettings.value = repository.getAppSettings()
+    }
 
     // Visualizer Toggle
     fun setVisualizerEnabled(enabled: Boolean) {

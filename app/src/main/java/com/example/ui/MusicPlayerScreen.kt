@@ -65,7 +65,17 @@ import com.example.ui.components.LibraryScreen
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.SearchScreen
 import com.example.ui.components.SettingsScreen
+import com.example.ui.components.DuplicateFinderDialog
+import com.example.ui.components.FolderBlacklistDialog
+import com.example.ui.components.RingtoneCutterDialog
+import com.example.ui.components.SongInfoDialog
 import com.example.ui.components.VideoListView
+import com.example.ui.components.MoodTagDialog
+import com.example.ui.components.VaultDialog
+import com.example.ui.components.StreamUrlDialog
+import com.example.ui.components.BeatWaveWrappedDialog
+import com.example.ui.components.AchievementsDialog
+import com.example.util.MediaShareHelper
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
@@ -109,6 +119,20 @@ fun MusicPlayerScreen(
     val selectedAlbum by viewModel.selectedAlbum.collectAsStateWithLifecycle()
     val selectedArtist by viewModel.selectedArtist.collectAsStateWithLifecycle()
     val selectedFolder by viewModel.selectedFolder.collectAsStateWithLifecycle()
+
+    val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
+    val selectedSongForInfo by viewModel.selectedSongForInfo.collectAsStateWithLifecycle()
+    val songDetailedInfo by viewModel.songDetailedInfo.collectAsStateWithLifecycle()
+    val selectedSongForRingtone by viewModel.selectedSongForRingtone.collectAsStateWithLifecycle()
+    val showDuplicateFinderDialog by viewModel.showDuplicateFinderDialog.collectAsStateWithLifecycle()
+    val duplicateGroups by viewModel.duplicateGroups.collectAsStateWithLifecycle()
+    val showFolderBlacklistDialog by viewModel.showFolderBlacklistDialog.collectAsStateWithLifecycle()
+
+    val songForMoodTag by viewModel.songForMoodTag.collectAsStateWithLifecycle()
+    val showVaultDialog by viewModel.showVaultDialog.collectAsStateWithLifecycle()
+    val showStreamUrlDialog by viewModel.showStreamUrlDialog.collectAsStateWithLifecycle()
+    val showWrappedDialog by viewModel.showWrappedDialog.collectAsStateWithLifecycle()
+    val showAchievementsDialog by viewModel.showAchievementsDialog.collectAsStateWithLifecycle()
 
     // Automatic storage permission request on first launch
     val permissionsToRequest = remember {
@@ -317,6 +341,7 @@ fun MusicPlayerScreen(
                             HomeScreen(
                                 songs = songs,
                                 albums = albums,
+                                videos = videos,
                                 currentSongId = playbackSnapshot.currentSong?.id,
                                 isPlaying = playbackSnapshot.isPlaying,
                                 onSongClick = { song, list ->
@@ -327,6 +352,7 @@ fun MusicPlayerScreen(
                                     viewModel.setActiveTab(NavigationTab.ALBUMS)
                                     viewModel.setMainBottomTab(MainBottomTab.LIBRARY)
                                 },
+                                onVideoClick = { viewModel.selectVideo(it) },
                                 onScanMedia = { viewModel.scanDeviceMedia() },
                                 onAddSongs = {
                                     audioPickerLauncher.launch(
@@ -335,7 +361,9 @@ fun MusicPlayerScreen(
                                 },
                                 onDemoTracks = { viewModel.generateSampleTracks() },
                                 onOpenEqualizer = { viewModel.setShowEqualizer(true) },
-                                onOpenSettings = { viewModel.setShowSettings(true) }
+                                onOpenSettings = { viewModel.setShowSettings(true) },
+                                onOpenWrapped = { viewModel.openWrappedDialog() },
+                                onOpenAchievements = { viewModel.openAchievementsDialog() }
                             )
                         }
 
@@ -356,7 +384,10 @@ fun MusicPlayerScreen(
                                 onCategoryClick = { tab ->
                                     viewModel.setActiveTab(tab)
                                     viewModel.setMainBottomTab(MainBottomTab.LIBRARY)
-                                }
+                                },
+                                onSongInfo = { viewModel.openSongInfo(it) },
+                                onShareSong = { MediaShareHelper.shareSong(context, it) },
+                                onCutRingtone = { viewModel.openRingtoneCutter(it) }
                             )
                         }
 
@@ -388,7 +419,10 @@ fun MusicPlayerScreen(
                                 onAddToPlaylist = { viewModel.setSongToAddToPlaylist(it) },
                                 onDeleteSong = { viewModel.deleteSong(it) },
                                 onPlayGroup = { list, idx -> viewModel.playGroup(list, idx) },
-                                onShuffleGroup = { list -> viewModel.shuffleGroup(list) }
+                                onShuffleGroup = { list -> viewModel.shuffleGroup(list) },
+                                onSongInfo = { viewModel.openSongInfo(it) },
+                                onShareSong = { MediaShareHelper.shareSong(context, it) },
+                                onCutRingtone = { viewModel.openRingtoneCutter(it) }
                             )
                         }
 
@@ -402,7 +436,10 @@ fun MusicPlayerScreen(
                                     )
                                 },
                                 onLoadDemoVideo = { viewModel.generateDemoVideo() },
-                                onDeleteVideo = { viewModel.deleteVideo(it) }
+                                onDeleteVideo = { viewModel.deleteVideo(it) },
+                                onShareVideo = { MediaShareHelper.shareVideo(context, it) },
+                                onOpenStreamUrl = { viewModel.openStreamUrlDialog() },
+                                onOpenVault = { viewModel.openVaultDialog() }
                             )
                         }
                     }
@@ -433,7 +470,12 @@ fun MusicPlayerScreen(
                 onSetPointB = { viewModel.setPointB() },
                 onClearABRepeat = { viewModel.clearABRepeat() },
                 onAttachLyrics = { songId, uri -> viewModel.setSongLyrics(songId, uri) },
-                isVisualizerEnabled = isVisualizerEnabled
+                isVisualizerEnabled = isVisualizerEnabled,
+                onSongInfo = { viewModel.openSongInfo(it) },
+                onShareSong = { MediaShareHelper.shareSong(context, it) },
+                onCutRingtone = { viewModel.openRingtoneCutter(it) },
+                onSetPlaybackSpeedAndPitch = { speed, pitch -> viewModel.setPlaybackSpeedAndPitch(speed, pitch) },
+                onTagMood = { viewModel.openMoodTagDialog(it) }
             )
         }
 
@@ -477,6 +519,8 @@ fun MusicPlayerScreen(
                         equalizerState = equalizerState,
                         onSetEnabled = { viewModel.setEqualizerEnabled(it) },
                         onSetBassBoost = { viewModel.setBassBoost(it) },
+                        onSetVirtualizer = { viewModel.setVirtualizer(it) },
+                        onToggleVolumeNormalization = { viewModel.setVolumeNormalization(it) },
                         onSetBandLevel = { idx, lvl -> viewModel.setEqualizerBandLevel(idx, lvl) },
                         onSelectPreset = { viewModel.selectEqualizerPreset(it) },
                         sleepTimerSecondsRemaining = playbackSnapshot.sleepTimerRemainingSeconds,
@@ -528,12 +572,34 @@ fun MusicPlayerScreen(
                         onSelectTheme = { viewModel.setThemeMode(it) },
                         isVisualizerEnabled = isVisualizerEnabled,
                         onToggleVisualizer = { viewModel.setVisualizerEnabled(it) },
+                        appSettings = appSettings,
+                        onToggleAutoPause = { viewModel.setAutoPauseOnCallAndUnplug(it) },
+                        onToggleHeadsetDoublePress = { viewModel.setHeadsetDoublePressEnabled(it) },
+                        onToggleShakeToSkip = { viewModel.setShakeToSkipEnabled(it) },
+                        onToggleFilterShortAudio = { viewModel.setFilterShortAudioEnabled(it) },
+                        onSetMinAudioDuration = { viewModel.setMinAudioDurationSec(it) },
+                        onOpenFolderBlacklist = { viewModel.openFolderBlacklist() },
+                        onOpenDuplicateFinder = { viewModel.openDuplicateFinder() },
+                        onOpenRingtoneCutter = {
+                            val target = playbackSnapshot.currentSong ?: songs.firstOrNull()
+                            if (target != null) {
+                                viewModel.openRingtoneCutter(target)
+                            } else {
+                                android.widget.Toast.makeText(context, "No songs available to trim", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         listeningStats = listeningStats,
                         songCount = songs.size,
                         videoCount = videos.size,
                         playlistCount = playlists.size,
                         onExportBackup = { viewModel.exportBackupJson() },
-                        onImportBackup = { viewModel.importBackupJson(it) }
+                        onImportBackup = { viewModel.importBackupJson(it) },
+                        onToggleFadeInOut = { viewModel.setFadeInOutEnabled(it) },
+                        onToggleAutoFetchLyrics = { viewModel.setAutoFetchLyricsEnabled(it) },
+                        onToggleBackgroundVideoAudioOnly = { viewModel.setBackgroundVideoAudioOnly(it) },
+                        onToggleReduceAnimations = { viewModel.setReduceAnimations(it) },
+                        onOpenWrapped = { viewModel.openWrappedDialog() },
+                        onOpenAchievements = { viewModel.openAchievementsDialog() }
                     )
                 }
             }
@@ -556,6 +622,94 @@ fun MusicPlayerScreen(
                     viewModel.addSongToPlaylist(playlistId, song.id)
                     viewModel.setSongToAddToPlaylist(null)
                 }
+            )
+        }
+
+        // Song Info Dialog
+        selectedSongForInfo?.let { song ->
+            SongInfoDialog(
+                song = song,
+                info = songDetailedInfo,
+                onDismiss = { viewModel.closeSongInfo() }
+            )
+        }
+
+        // Ringtone Cutter Dialog
+        selectedSongForRingtone?.let { song ->
+            RingtoneCutterDialog(
+                song = song,
+                onDismiss = { viewModel.closeRingtoneCutter() }
+            )
+        }
+
+        // Duplicate Song Finder Dialog
+        if (showDuplicateFinderDialog) {
+            DuplicateFinderDialog(
+                duplicateGroups = duplicateGroups,
+                onPlaySong = { viewModel.playbackManager.playSong(it) },
+                onDeleteSong = { viewModel.deleteSong(it) },
+                onAutoCleanGroup = { viewModel.autoCleanDuplicateGroup(it) },
+                onDismiss = { viewModel.closeDuplicateFinder() }
+            )
+        }
+
+        // Folder Blacklist Dialog
+        if (showFolderBlacklistDialog) {
+            FolderBlacklistDialog(
+                blacklistedFolders = appSettings.blacklistedFolders,
+                detectedFolders = folders.map { it.path }.filter { it.isNotBlank() },
+                onAddBlacklistFolder = { viewModel.addBlacklistedFolder(it) },
+                onRemoveBlacklistFolder = { viewModel.removeBlacklistedFolder(it) },
+                onDismiss = { viewModel.closeFolderBlacklist() }
+            )
+        }
+
+        // Feature 12: Mood Tag Dialog
+        songForMoodTag?.let { song ->
+            MoodTagDialog(
+                song = song,
+                onSaveMoods = { moods -> viewModel.setSongMoods(song.id, moods) },
+                onDismiss = { viewModel.closeMoodTagDialog() }
+            )
+        }
+
+        // Feature 10: Private Video Vault Dialog
+        if (showVaultDialog) {
+            VaultDialog(
+                vaultManager = viewModel.vaultManager,
+                onPlayVideo = { video ->
+                    viewModel.selectVideo(video)
+                    viewModel.closeVaultDialog()
+                },
+                onDismiss = { viewModel.closeVaultDialog() }
+            )
+        }
+
+        // Feature 9: Network Stream Player Dialog
+        if (showStreamUrlDialog) {
+            StreamUrlDialog(
+                onPlayUrl = { url, title ->
+                    viewModel.playNetworkStream(url, title)
+                    viewModel.closeStreamUrlDialog()
+                },
+                onDismiss = { viewModel.closeStreamUrlDialog() }
+            )
+        }
+
+        // Feature 11: BeatWave Wrapped Dialog
+        if (showWrappedDialog) {
+            BeatWaveWrappedDialog(
+                stats = listeningStats,
+                allSongs = songs,
+                onDismiss = { viewModel.closeWrappedDialog() }
+            )
+        }
+
+        // Feature 14: Achievements & Badges Dialog
+        if (showAchievementsDialog) {
+            AchievementsDialog(
+                achievements = viewModel.achievementManager.getAchievements(listeningStats),
+                onDismiss = { viewModel.closeAchievementsDialog() }
             )
         }
     }

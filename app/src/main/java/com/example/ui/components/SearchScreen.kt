@@ -63,6 +63,9 @@ fun SearchScreen(
     onAddToPlaylist: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit,
     onCategoryClick: (NavigationTab) -> Unit,
+    onSongInfo: ((Song) -> Unit)? = null,
+    onShareSong: ((Song) -> Unit)? = null,
+    onCutRingtone: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -256,7 +259,10 @@ fun SearchScreen(
                             onSongClick = { onSongClick(song, filteredSongs) },
                             onToggleFavorite = { onToggleFavorite(song) },
                             onAddToPlaylist = { onAddToPlaylist(song) },
-                            onDeleteSong = { onDeleteSong(song) }
+                            onDeleteSong = { onDeleteSong(song) },
+                            onSongInfo = onSongInfo,
+                            onShareSong = onShareSong,
+                            onCutRingtone = onCutRingtone
                         )
                     }
                 }

@@ -26,19 +26,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -110,6 +115,12 @@ fun SettingsScreen(
     playlistCount: Int,
     onExportBackup: suspend () -> String,
     onImportBackup: (String) -> Unit,
+    onToggleFadeInOut: ((Boolean) -> Unit)? = null,
+    onToggleAutoFetchLyrics: ((Boolean) -> Unit)? = null,
+    onToggleBackgroundVideoAudioOnly: ((Boolean) -> Unit)? = null,
+    onToggleReduceAnimations: ((Boolean) -> Unit)? = null,
+    onOpenWrapped: (() -> Unit)? = null,
+    onOpenAchievements: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -337,6 +348,39 @@ fun SettingsScreen(
                     checked = appSettings.shakeToSkipEnabled,
                     onCheckedChange = onToggleShakeToSkip,
                     testTag = "setting_shake_to_skip_switch"
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Feature (4): Fade in/out on play and pause
+                SettingToggleItem(
+                    title = "Fade In / Out on Play & Pause",
+                    subtitle = "Smooth volume ramp when starting, resuming, or pausing tracks to prevent audio pops",
+                    checked = appSettings.fadeInOutEnabled,
+                    onCheckedChange = { onToggleFadeInOut?.invoke(it) },
+                    testTag = "setting_fade_in_out_switch"
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Feature (5): Automatic lyrics fetching (LRCLIB)
+                SettingToggleItem(
+                    title = "Auto-Fetch Synced Lyrics (LRCLIB)",
+                    subtitle = "Automatically download and cache synchronized line-by-line .lrc lyrics when connected to internet",
+                    checked = appSettings.autoFetchLyrics,
+                    onCheckedChange = { onToggleAutoFetchLyrics?.invoke(it) },
+                    testTag = "setting_auto_fetch_lyrics_switch"
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Feature (8): Background video audio-only
+                SettingToggleItem(
+                    title = "Audio-Only Background Video",
+                    subtitle = "Keep video audio playing smoothly even when switching apps or locking your phone screen",
+                    checked = appSettings.backgroundVideoAudioOnly,
+                    onCheckedChange = { onToggleBackgroundVideoAudioOnly?.invoke(it) },
+                    testTag = "setting_bg_video_audio_switch"
                 )
             }
         }
@@ -660,7 +704,7 @@ fun SettingsScreen(
             }
         }
 
-        // Performance & Heavy Features Toggle
+        // Performance & Low-RAM Optimization
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -675,6 +719,154 @@ fun SettingsScreen(
                     onCheckedChange = onToggleVisualizer,
                     testTag = "setting_visualizer_switch"
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                SettingToggleItem(
+                    title = "Reduce Animations",
+                    subtitle = "Disable heavy screen transitions and graphics for low-end or 32-bit devices",
+                    checked = appSettings.reduceAnimations,
+                    onCheckedChange = { onToggleReduceAnimations?.invoke(it) },
+                    testTag = "setting_reduce_animations_switch"
+                )
+            }
+        }
+
+        // Fun Features: Wrapped & Badges
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SurfaceHighlightDark),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Celebration,
+                            contentDescription = null,
+                            tint = PrimaryViolet,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "Fun Features & Gamification",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                        Text(
+                            text = "Yearly stats cards and listening achievements",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // BeatWave Wrapped Action
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceHighlightDark)
+                        .clickable { onOpenWrapped?.invoke() }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Celebration,
+                            contentDescription = null,
+                            tint = PrimaryViolet,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "BeatWave Wrapped",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            )
+                            Text(
+                                text = "Your top songs, artists & total time formatted as a shareable card",
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { onOpenWrapped?.invoke() },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("View", fontSize = 11.sp, color = PrimaryViolet)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Badges and Achievements Action
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceHighlightDark)
+                        .clickable { onOpenAchievements?.invoke() }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = SecondaryAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Achievements & Badges",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            )
+                            Text(
+                                text = "Unlock badges like '100 songs played', 'Night Owl', 'Genre Explorer'",
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { onOpenAchievements?.invoke() },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("Badges", fontSize = 11.sp, color = SecondaryAccent)
+                    }
+                }
             }
         }
 

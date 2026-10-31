@@ -6,7 +6,12 @@ data class AppSettings(
     val shakeToSkipEnabled: Boolean = false,
     val filterShortAudioEnabled: Boolean = true,
     val minAudioDurationSec: Int = 60,
-    val blacklistedFolders: Set<String> = emptySet()
+    val blacklistedFolders: Set<String> = emptySet(),
+    val volumeNormalization: Boolean = false,
+    val fadeInOutEnabled: Boolean = true,
+    val autoFetchLyrics: Boolean = true,
+    val backgroundVideoAudioOnly: Boolean = false,
+    val reduceAnimations: Boolean = false
 )
 
 data class DuplicateSongGroup(

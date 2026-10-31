@@ -54,6 +54,11 @@ class MusicRepository(private val context: Context) {
         private const val KEY_FILTER_SHORT_AUDIO = "key_filter_short_audio"
         private const val KEY_MIN_DURATION_SEC = "key_min_duration_sec"
         private const val KEY_BLACKLISTED_FOLDERS = "key_blacklisted_folders"
+        private const val KEY_VOLUME_NORM = "key_volume_norm"
+        private const val KEY_FADE_IN_OUT = "key_fade_in_out"
+        private const val KEY_AUTO_LYRICS = "key_auto_lyrics"
+        private const val KEY_BG_VIDEO_AUDIO = "key_bg_video_audio"
+        private const val KEY_REDUCE_ANIM = "key_reduce_anim"
     }
 
     fun isVisualizerEnabled(): Boolean {
@@ -72,8 +77,33 @@ class MusicRepository(private val context: Context) {
             shakeToSkipEnabled = prefs.getBoolean(KEY_SHAKE_TO_SKIP, false),
             filterShortAudioEnabled = prefs.getBoolean(KEY_FILTER_SHORT_AUDIO, true),
             minAudioDurationSec = prefs.getInt(KEY_MIN_DURATION_SEC, 60),
-            blacklistedFolders = blacklisted
+            blacklistedFolders = blacklisted,
+            volumeNormalization = prefs.getBoolean(KEY_VOLUME_NORM, false),
+            fadeInOutEnabled = prefs.getBoolean(KEY_FADE_IN_OUT, true),
+            autoFetchLyrics = prefs.getBoolean(KEY_AUTO_LYRICS, true),
+            backgroundVideoAudioOnly = prefs.getBoolean(KEY_BG_VIDEO_AUDIO, false),
+            reduceAnimations = prefs.getBoolean(KEY_REDUCE_ANIM, false)
         )
+    }
+
+    fun setVolumeNormalizationSetting(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_VOLUME_NORM, enabled).apply()
+    }
+
+    fun setFadeInOutEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FADE_IN_OUT, enabled).apply()
+    }
+
+    fun setAutoFetchLyricsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_LYRICS, enabled).apply()
+    }
+
+    fun setBackgroundVideoAudioOnly(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BG_VIDEO_AUDIO, enabled).apply()
+    }
+
+    fun setReduceAnimations(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REDUCE_ANIM, enabled).apply()
     }
 
     fun setAutoPauseOnCallAndUnplug(enabled: Boolean) {
@@ -377,7 +407,10 @@ class MusicRepository(private val context: Context) {
                         lastPlayedTime = obj.optLong("lastPlayedTime", 0L),
                         lyricsUriString = obj.optString("lyricsUriString", null).takeIf { !it.isNullOrBlank() },
                         folderName = obj.optString("folderName", "Music"),
-                        folderPath = obj.optString("folderPath", "")
+                        folderPath = obj.optString("folderPath", ""),
+                        moodTags = obj.optJSONArray("moodTags")?.let { arr ->
+                            (0 until arr.length()).map { arr.getString(it) }
+                        } ?: emptyList()
                     )
                 )
             }
@@ -424,10 +457,20 @@ class MusicRepository(private val context: Context) {
                 put("lyricsUriString", song.lyricsUriString ?: "")
                 put("folderName", song.folderName)
                 put("folderPath", song.folderPath)
+                val mArr = JSONArray()
+                song.moodTags.forEach { mArr.put(it) }
+                put("moodTags", mArr)
             }
             jsonArray.put(obj)
         }
         prefs.edit().putString(KEY_SONGS, jsonArray.toString()).apply()
+    }
+
+    suspend fun setSongMoods(songId: String, moods: List<String>) = withContext(Dispatchers.IO) {
+        val updated = loadSongs().map {
+            if (it.id == songId) it.copy(moodTags = moods) else it
+        }
+        saveSongs(updated)
     }
 
     suspend fun recordSongPlayed(songId: String) = withContext(Dispatchers.IO) {
@@ -483,7 +526,23 @@ class MusicRepository(private val context: Context) {
                     )
                 )
             }
-            playlists
+
+            // Generate Mood-Based Smart Auto Playlists
+            val allSongs = loadAllRawSongs()
+            val moodChillSongs = allSongs.filter { it.moodTags.contains("Chill") || it.title.contains("chill", true) || it.album.contains("chill", true) }.map { it.id }
+            val moodWorkoutSongs = allSongs.filter { it.moodTags.contains("Workout") || it.title.contains("workout", true) || it.title.contains("run", true) }.map { it.id }
+            val moodPartySongs = allSongs.filter { it.moodTags.contains("Party") || it.title.contains("party", true) || it.title.contains("dance", true) }.map { it.id }
+            val moodFocusSongs = allSongs.filter { it.moodTags.contains("Focus") || it.title.contains("focus", true) || it.title.contains("ambient", true) }.map { it.id }
+
+            val moodPlaylists = listOf(
+                Playlist("pl_mood_chill", "Chill Vibes 🍃", "Relaxing tracks for calm moments", moodChillSongs),
+                Playlist("pl_mood_workout", "Workout Energy ⚡", "High-tempo beats to keep you moving", moodWorkoutSongs),
+                Playlist("pl_mood_party", "Party Hits 🎉", "Upbeat bangers to set the mood", moodPartySongs),
+                Playlist("pl_mood_focus", "Focus Flow 🧠", "Deep concentration and study sounds", moodFocusSongs)
+            )
+
+            val customPlaylists = playlists.filterNot { it.id.startsWith("pl_mood_") }
+            moodPlaylists + customPlaylists
         } catch (e: Exception) {
             Log.e("MusicRepository", "Error parsing playlists: ${e.message}")
             emptyList()
@@ -948,47 +1007,49 @@ class MusicRepository(private val context: Context) {
                 FileOutputStream(srtFile).use { fos ->
                     val srtContent = """
 1
-00:00:00,500 --> 00:00:03,000
-Harmoniq Video Player
+00:00:00,500 --> 00:00:02,500
+BeatWave Video Player
 
 2
-00:00:03,200 --> 00:00:06,500
+00:00:02,800 --> 00:00:04,800
 Built-in MP4/WebM video playback
-
-3
-00:00:06,800 --> 00:00:09,500
-Double-tap left or right to seek 10s!
                     """.trimIndent()
                     fos.write(srtContent.toByteArray())
                 }
             } catch (_: Exception) {}
         }
 
-        // Create demo MP4 video using MediaCodec & MediaMuxer
-        if (!videoFile.exists() || videoFile.length() < 5000) {
-            encodeDemoMp4(videoFile, 640, 360, 10)
+        // Create demo MP4 video safely using MediaCodec & MediaMuxer
+        if (!videoFile.exists() || videoFile.length() < 1000) {
+            encodeDemoMp4(videoFile, 320, 240, 5)
         }
 
+        val hasValidVideo = videoFile.exists() && videoFile.length() > 0
         return listOf(
             VideoItem(
                 id = "demo_video_1",
-                title = "Harmoniq Neon Demo",
-                durationMs = 10000L,
-                uriString = Uri.fromFile(videoFile).toString(),
+                title = "BeatWave Visual Demo",
+                durationMs = 5000L,
+                uriString = if (hasValidVideo) Uri.fromFile(videoFile).toString() else "",
                 lastPositionMs = 0L,
                 thumbnailPath = null,
                 dateAdded = System.currentTimeMillis(),
-                subtitleUriString = Uri.fromFile(srtFile).toString(),
+                subtitleUriString = if (srtFile.exists()) Uri.fromFile(srtFile).toString() else null,
                 isDemo = true
             )
         )
     }
 
     private fun encodeDemoMp4(outputFile: File, width: Int, height: Int, durationSeconds: Int) {
+        var encoder: MediaCodec? = null
+        var muxer: MediaMuxer? = null
+        var muxerStarted = false
+        var sampleCount = 0
+
         try {
             val mimeType = MediaFormat.MIMETYPE_VIDEO_AVC
-            val frameRate = 30
-            val bitRate = 1200000
+            val frameRate = 24
+            val bitRate = 600000
             val numFrames = frameRate * durationSeconds
 
             val format = MediaFormat.createVideoFormat(mimeType, width, height).apply {
@@ -998,73 +1059,145 @@ Double-tap left or right to seek 10s!
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
             }
 
-            val encoder = MediaCodec.createEncoderByType(mimeType)
-            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            encoder.start()
+            val codec = MediaCodec.createEncoderByType(mimeType)
+            encoder = codec
+            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            codec.start()
 
-            val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            val mediaMuxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer = mediaMuxer
             var videoTrackIndex = -1
-            var muxerStarted = false
 
             val bufferInfo = MediaCodec.BufferInfo()
             val yuvBuffer = ByteArray(width * height * 3 / 2)
 
             for (frameIndex in 0 until numFrames) {
-                val inputBufferIndex = encoder.dequeueInputBuffer(10000)
+                val inputBufferIndex = codec.dequeueInputBuffer(10000)
                 if (inputBufferIndex >= 0) {
-                    val inputBuffer = encoder.getInputBuffer(inputBufferIndex) ?: continue
-                    inputBuffer.clear()
+                    val inputBuffer = codec.getInputBuffer(inputBufferIndex)
+                    if (inputBuffer != null) {
+                        inputBuffer.clear()
 
-                    // Procedural animated gradient color
-                    val t = frameIndex.toFloat() / numFrames.toFloat()
-                    val yVal = (128 + sin(t * Math.PI * 4.0) * 80).toInt().toByte()
-                    val uVal = (128 + sin(t * Math.PI * 2.0) * 60).toInt().toByte()
-                    val vVal = (128 + sin((t + 0.5) * Math.PI * 2.0) * 60).toInt().toByte()
+                        // Procedural animated gradient color
+                        val t = frameIndex.toFloat() / numFrames.toFloat()
+                        val yVal = (128 + sin(t * Math.PI * 4.0) * 80).toInt().toByte()
+                        val uVal = (128 + sin(t * Math.PI * 2.0) * 60).toInt().toByte()
+                        val vVal = (128 + sin((t + 0.5) * Math.PI * 2.0) * 60).toInt().toByte()
 
-                    // Fill Y plane
-                    val ySize = width * height
-                    for (i in 0 until ySize) {
-                        yuvBuffer[i] = yVal
+                        val ySize = width * height
+                        for (i in 0 until ySize) {
+                            yuvBuffer[i] = yVal
+                        }
+                        val uvSize = ySize / 4
+                        for (i in 0 until uvSize) {
+                            yuvBuffer[ySize + i] = uVal
+                            yuvBuffer[ySize + uvSize + i] = vVal
+                        }
+
+                        inputBuffer.put(yuvBuffer)
+                        val pts = frameIndex * 1000000L / frameRate
+                        codec.queueInputBuffer(inputBufferIndex, 0, yuvBuffer.size, pts, 0)
                     }
-                    // Fill U and V planes
-                    val uvSize = ySize / 4
-                    for (i in 0 until uvSize) {
-                        yuvBuffer[ySize + i] = uVal
-                        yuvBuffer[ySize + uvSize + i] = vVal
-                    }
-
-                    inputBuffer.put(yuvBuffer)
-                    val pts = frameIndex * 1000000L / frameRate
-                    encoder.queueInputBuffer(inputBufferIndex, 0, yuvBuffer.size, pts, 0)
                 }
 
-                var outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
-                while (outputBufferIndex >= 0) {
-                    val outputBuffer = encoder.getOutputBuffer(outputBufferIndex)
-                    if (outputBuffer != null) {
+                // Poll output buffers
+                var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
+                while (outputBufferIndex != MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                         if (!muxerStarted) {
-                            val newFormat = encoder.outputFormat
-                            videoTrackIndex = muxer.addTrack(newFormat)
-                            muxer.start()
+                            videoTrackIndex = mediaMuxer.addTrack(codec.outputFormat)
+                            mediaMuxer.start()
                             muxerStarted = true
                         }
-                        if (bufferInfo.size > 0 && muxerStarted) {
-                            muxer.writeSampleData(videoTrackIndex, outputBuffer, bufferInfo)
+                    } else if (outputBufferIndex >= 0) {
+                        val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
+                        if (outputBuffer != null) {
+                            // If this buffer has CODEC_CONFIG, ignore size so we don't write duplicate CSD
+                            if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                                bufferInfo.size = 0
+                            }
+                            if (bufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
+                                outputBuffer.position(bufferInfo.offset)
+                                outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                                mediaMuxer.writeSampleData(videoTrackIndex, outputBuffer, bufferInfo)
+                                sampleCount++
+                            }
                         }
+                        codec.releaseOutputBuffer(outputBufferIndex, false)
                     }
-                    encoder.releaseOutputBuffer(outputBufferIndex, false)
-                    outputBufferIndex = encoder.dequeueOutputBuffer(bufferInfo, 0)
+                    outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
                 }
             }
 
-            encoder.stop()
-            encoder.release()
-            if (muxerStarted) {
-                muxer.stop()
+            // Signal End of Stream
+            val eosIndex = codec.dequeueInputBuffer(10000)
+            if (eosIndex >= 0) {
+                codec.queueInputBuffer(
+                    eosIndex,
+                    0,
+                    0,
+                    numFrames * 1000000L / frameRate,
+                    MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                )
             }
-            muxer.release()
+
+            // Drain remaining output buffers
+            var eosReached = false
+            var drainAttempts = 0
+            while (!eosReached && drainAttempts < 30) {
+                drainAttempts++
+                val outIndex = codec.dequeueOutputBuffer(bufferInfo, 10000)
+                if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (!muxerStarted) {
+                        videoTrackIndex = mediaMuxer.addTrack(codec.outputFormat)
+                        mediaMuxer.start()
+                        muxerStarted = true
+                    }
+                } else if (outIndex >= 0) {
+                    if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                        bufferInfo.size = 0
+                    }
+                    val outBuf = codec.getOutputBuffer(outIndex)
+                    if (outBuf != null && bufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
+                        outBuf.position(bufferInfo.offset)
+                        outBuf.limit(bufferInfo.offset + bufferInfo.size)
+                        mediaMuxer.writeSampleData(videoTrackIndex, outBuf, bufferInfo)
+                        sampleCount++
+                    }
+                    if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        eosReached = true
+                    }
+                    codec.releaseOutputBuffer(outIndex, false)
+                } else if (outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    break
+                }
+            }
         } catch (e: Exception) {
             Log.w("MusicRepository", "Could not encode demo MP4: ${e.message}")
+        } finally {
+            try {
+                encoder?.stop()
+            } catch (_: Exception) {}
+            try {
+                encoder?.release()
+            } catch (_: Exception) {}
+
+            if (muxerStarted && sampleCount > 0) {
+                try {
+                    muxer?.stop()
+                } catch (e: Exception) {
+                    Log.w("MusicRepository", "Muxer stop error: ${e.message}")
+                }
+            }
+            try {
+                muxer?.release()
+            } catch (_: Exception) {}
+
+            if (sampleCount == 0 || outputFile.length() == 0L) {
+                try {
+                    outputFile.delete()
+                } catch (_: Exception) {}
+            }
         }
     }
 

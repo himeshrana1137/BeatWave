@@ -65,6 +65,8 @@ fun EqualizerScreen(
     onSetBassBoost: (Int) -> Unit,
     onSetBandLevel: (bandIndex: Int, level: Int) -> Unit,
     onSelectPreset: (String) -> Unit,
+    onSetVirtualizer: (Int) -> Unit = {},
+    onToggleVolumeNormalization: (Boolean) -> Unit = {},
     sleepTimerSecondsRemaining: Int?,
     onSetSleepTimer: (minutes: Int) -> Unit,
     onCancelSleepTimer: () -> Unit,
@@ -307,6 +309,96 @@ fun EqualizerScreen(
                         thumbColor = PrimaryNeon,
                         activeTrackColor = PrimaryNeon,
                         inactiveTrackColor = SurfaceHighlightDark
+                    )
+                )
+            }
+        }
+
+        // Virtualizer (3D Surround)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "3D Virtualizer Effect",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                    Text(
+                        text = "${(equalizerState.virtualizerLevel / 10)}%",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = SecondaryCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Slider(
+                    value = (equalizerState.virtualizerLevel / 1000f).coerceIn(0f, 1f),
+                    onValueChange = { onSetVirtualizer((it * 1000).toInt()) },
+                    enabled = equalizerState.isEnabled,
+                    modifier = Modifier
+                        .testTag("virtualizer_slider")
+                        .fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = SecondaryCyan,
+                        activeTrackColor = SecondaryCyan,
+                        inactiveTrackColor = SurfaceHighlightDark
+                    )
+                )
+            }
+        }
+
+        // Volume Normalization
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Volume Normalization",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Balances loud and quiet tracks for a uniform, comfortable volume.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Switch(
+                    checked = equalizerState.volumeNormalizationEnabled,
+                    onCheckedChange = onToggleVolumeNormalization,
+                    modifier = Modifier.testTag("volume_normalization_switch"),
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = PrimaryNeon,
+                        uncheckedTrackColor = SurfaceHighlightDark
                     )
                 )
             }

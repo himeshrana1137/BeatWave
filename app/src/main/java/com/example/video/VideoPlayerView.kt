@@ -117,6 +117,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
+data class AudioTrackInfo(val index: Int, val label: String)
+
 @Composable
 fun VideoPlayerView(
     video: VideoItem,
@@ -143,6 +145,11 @@ fun VideoPlayerView(
 
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var showSpeedMenu by remember { mutableStateOf(false) }
+
+    // Audio Track Selection (Feature 7)
+    var availableAudioTracks by remember { mutableStateOf<List<AudioTrackInfo>>(emptyList()) }
+    var selectedAudioTrackIndex by remember { mutableIntStateOf(-1) }
+    var showAudioTrackMenu by remember { mutableStateOf(false) }
 
     // Gestures HUD feedback
     var gestureHudText by remember { mutableStateOf<String?>(null) }
@@ -315,6 +322,22 @@ fun VideoPlayerView(
                                             mp.start()
                                             isPlaying = true
                                             durationMs = mp.duration.toLong()
+
+                                            // Detect audio tracks
+                                            try {
+                                                val trackInfo = mp.trackInfo
+                                                val audioTracks = mutableListOf<AudioTrackInfo>()
+                                                trackInfo.forEachIndexed { idx, info ->
+                                                    if (info.trackType == MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO) {
+                                                        val lang = info.language?.takeIf { it.isNotBlank() && it != "und" } ?: "Track ${audioTracks.size + 1}"
+                                                        audioTracks.add(AudioTrackInfo(idx, "Audio ${audioTracks.size + 1} ($lang)"))
+                                                    }
+                                                }
+                                                availableAudioTracks = audioTracks
+                                                if (audioTracks.isNotEmpty()) {
+                                                    selectedAudioTrackIndex = audioTracks.first().index
+                                                }
+                                            } catch (_: Exception) {}
                                         }
                                         setOnCompletionListener {
                                             isPlaying = false
@@ -685,6 +708,53 @@ fun VideoPlayerView(
                                 contentDescription = "Audio-only toggle",
                                 tint = if (isAudioOnlyMode) SecondaryCyan else Color.White
                             )
+                        }
+
+                        // Feature 7: Audio Track Selection Menu
+                        if (availableAudioTracks.size > 1) {
+                            Box {
+                                IconButton(
+                                    onClick = { showAudioTrackMenu = true },
+                                    modifier = Modifier
+                                        .testTag("video_audio_track_button")
+                                        .minimumInteractiveComponentSize()
+                                        .size(38.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.GraphicEq,
+                                        contentDescription = "Audio Track Selection",
+                                        tint = SecondaryCyan
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = showAudioTrackMenu,
+                                    onDismissRequest = { showAudioTrackMenu = false },
+                                    modifier = Modifier.background(SurfaceHighlightDark)
+                                ) {
+                                    availableAudioTracks.forEach { track ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = track.label,
+                                                    color = if (selectedAudioTrackIndex == track.index) SecondaryCyan else TextPrimary,
+                                                    fontWeight = if (selectedAudioTrackIndex == track.index) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                selectedAudioTrackIndex = track.index
+                                                showAudioTrackMenu = false
+                                                mediaPlayer?.let { player ->
+                                                    try {
+                                                        player.selectTrack(track.index)
+                                                        gestureHudText = "🔊 ${track.label}"
+                                                    } catch (_: Exception) {}
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         // Aspect Ratio Toggle (Fit / Fill / Zoom)

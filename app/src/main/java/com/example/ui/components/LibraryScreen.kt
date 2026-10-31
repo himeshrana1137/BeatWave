@@ -91,6 +91,9 @@ fun LibraryScreen(
     onDeleteSong: (Song) -> Unit,
     onPlayGroup: (List<Song>, Int) -> Unit,
     onShuffleGroup: (List<Song>) -> Unit,
+    onSongInfo: ((Song) -> Unit)? = null,
+    onShareSong: ((Song) -> Unit)? = null,
+    onCutRingtone: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Intercept back presses when inside a detail view
@@ -226,7 +229,10 @@ fun LibraryScreen(
                                     onSongClick = { onSongClick(song, selectedAlbum.songs) },
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) }
+                                    onDeleteSong = { onDeleteSong(song) },
+                                    onSongInfo = onSongInfo,
+                                    onShareSong = onShareSong,
+                                    onCutRingtone = onCutRingtone
                                 )
                             }
                         }
@@ -266,7 +272,10 @@ fun LibraryScreen(
                                     onSongClick = { onSongClick(song, selectedArtist.songs) },
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) }
+                                    onDeleteSong = { onDeleteSong(song) },
+                                    onSongInfo = onSongInfo,
+                                    onShareSong = onShareSong,
+                                    onCutRingtone = onCutRingtone
                                 )
                             }
                         }
@@ -306,7 +315,10 @@ fun LibraryScreen(
                                     onSongClick = { onSongClick(song, selectedFolder.songs) },
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) }
+                                    onDeleteSong = { onDeleteSong(song) },
+                                    onSongInfo = onSongInfo,
+                                    onShareSong = onShareSong,
+                                    onCutRingtone = onCutRingtone
                                 )
                             }
                         }
@@ -377,7 +389,10 @@ fun LibraryScreen(
                                     onSongClick = { onSongClick(song, favSongs) },
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) }
+                                    onDeleteSong = { onDeleteSong(song) },
+                                    onSongInfo = onSongInfo,
+                                    onShareSong = onShareSong,
+                                    onCutRingtone = onCutRingtone
                                 )
                             }
                         }
@@ -405,7 +420,10 @@ fun LibraryScreen(
                                     onSongClick = { onSongClick(song, songs) },
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) }
+                                    onDeleteSong = { onDeleteSong(song) },
+                                    onSongInfo = onSongInfo,
+                                    onShareSong = onShareSong,
+                                    onCutRingtone = onCutRingtone
                                 )
                             }
                         }

@@ -27,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
@@ -73,6 +75,8 @@ fun VideoListView(
     onLoadDemoVideo: () -> Unit,
     onDeleteVideo: (String) -> Unit,
     onShareVideo: ((VideoItem) -> Unit)? = null,
+    onOpenStreamUrl: () -> Unit = {},
+    onOpenVault: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -103,13 +107,52 @@ fun VideoListView(
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Stream URL Player
+                IconButton(
+                    onClick = onOpenStreamUrl,
+                    modifier = Modifier
+                        .testTag("stream_url_button")
+                        .minimumInteractiveComponentSize()
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceDark)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = "Stream URL",
+                        tint = PrimaryViolet,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Private Vault
+                IconButton(
+                    onClick = onOpenVault,
+                    modifier = Modifier
+                        .testTag("private_vault_button")
+                        .minimumInteractiveComponentSize()
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceDark)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Private Vault",
+                        tint = SecondaryAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
                 IconButton(
                     onClick = onLoadDemoVideo,
                     modifier = Modifier
                         .testTag("demo_video_button")
                         .minimumInteractiveComponentSize()
-                        .size(38.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(SurfaceDark)
                 ) {
@@ -125,13 +168,13 @@ fun VideoListView(
                     onClick = onAddVideosClick,
                     modifier = Modifier
                         .testTag("add_videos_button")
-                        .height(38.dp),
+                        .height(36.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryViolet,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -139,7 +182,7 @@ fun VideoListView(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

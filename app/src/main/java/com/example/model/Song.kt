@@ -15,7 +15,8 @@ data class Song(
     val lastPlayedTime: Long = 0L,
     val lyricsUriString: String? = null,
     val folderName: String = "Music",
-    val folderPath: String = ""
+    val folderPath: String = "",
+    val moodTags: List<String> = emptyList()
 ) {
     val formattedDuration: String
         get() {
@@ -157,5 +158,7 @@ data class PlaybackSnapshot(
     val currentQueueIndex: Int = -1,
     val sleepTimerRemainingSeconds: Int? = null,
     val abRepeatA: Long? = null,
-    val abRepeatB: Long? = null
+    val abRepeatB: Long? = null,
+    val playbackSpeed: Float = 1.0f,
+    val playbackPitch: Float = 1.0f
 )

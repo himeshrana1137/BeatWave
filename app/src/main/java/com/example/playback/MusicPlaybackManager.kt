@@ -8,6 +8,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.PlaybackParams
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -235,10 +236,36 @@ class MusicPlaybackManager(private val context: Context) {
                 }
 
                 prepare()
-                start()
             }
 
             mediaPlayer = player
+
+            // Apply playback speed & pitch
+            try {
+                val speed = _snapshot.value.playbackSpeed
+                val pitch = _snapshot.value.playbackPitch
+                player.playbackParams = PlaybackParams().setSpeed(speed).setPitch(pitch)
+            } catch (_: Exception) {}
+
+            // Fade in if enabled
+            val settings = repository.getAppSettings()
+            if (settings.fadeInOutEnabled) {
+                try {
+                    player.setVolume(0f, 0f)
+                    player.start()
+                    scope.launch {
+                        for (i in 1..10) {
+                            val vol = i / 10f
+                            try { player.setVolume(vol, vol) } catch (_: Exception) {}
+                            delay(25)
+                        }
+                    }
+                } catch (_: Exception) {
+                    player.start()
+                }
+            } else {
+                player.start()
+            }
 
             // Attach hardware equalizer
             equalizerManager.attachAudioSession(player.audioSessionId)
@@ -310,30 +337,42 @@ class MusicPlaybackManager(private val context: Context) {
         }
 
         if (player.isPlaying) {
-            player.pause()
-            _snapshot.value = _snapshot.value.copy(isPlaying = false)
-            stopPositionTicker()
+            pause()
         } else {
-            startServiceIfAllowed()
-            player.start()
-            _snapshot.value = _snapshot.value.copy(isPlaying = true)
-            startPositionTicker()
+            play()
         }
-        notifyServicePlaybackChanged()
     }
 
     fun play() {
         startServiceIfAllowed()
         requestAudioFocus()
         registerNoisyReceiver()
-        mediaPlayer?.let { player ->
+        val player = mediaPlayer
+        if (player != null) {
             if (!player.isPlaying) {
-                player.start()
+                val settings = repository.getAppSettings()
+                if (settings.fadeInOutEnabled) {
+                    try {
+                        player.setVolume(0f, 0f)
+                        player.start()
+                        scope.launch {
+                            for (i in 1..10) {
+                                val vol = i / 10f
+                                try { player.setVolume(vol, vol) } catch (_: Exception) {}
+                                delay(25)
+                            }
+                        }
+                    } catch (_: Exception) {
+                        player.start()
+                    }
+                } else {
+                    player.start()
+                }
                 _snapshot.value = _snapshot.value.copy(isPlaying = true)
                 startPositionTicker()
                 notifyServicePlaybackChanged()
             }
-        } ?: run {
+        } else {
             val song = _snapshot.value.currentSong ?: activeQueue.firstOrNull()
             if (song != null) playSong(song)
         }
@@ -341,13 +380,46 @@ class MusicPlaybackManager(private val context: Context) {
 
     fun pause() {
         unregisterNoisyReceiver()
-        mediaPlayer?.let { player ->
-            if (player.isPlaying) {
-                player.pause()
+        val player = mediaPlayer ?: return
+        if (player.isPlaying) {
+            val settings = repository.getAppSettings()
+            if (settings.fadeInOutEnabled) {
+                scope.launch {
+                    for (i in 9 downTo 0) {
+                        val vol = i / 10f
+                        try { player.setVolume(vol, vol) } catch (_: Exception) {}
+                        delay(20)
+                    }
+                    try {
+                        player.pause()
+                        player.setVolume(1f, 1f)
+                    } catch (_: Exception) {}
+                    _snapshot.value = _snapshot.value.copy(isPlaying = false)
+                    stopPositionTicker()
+                    notifyServicePlaybackChanged()
+                }
+            } else {
+                try {
+                    player.pause()
+                } catch (_: Exception) {}
                 _snapshot.value = _snapshot.value.copy(isPlaying = false)
                 stopPositionTicker()
                 notifyServicePlaybackChanged()
             }
+        }
+    }
+
+    fun setPlaybackSpeedAndPitch(speed: Float, pitch: Float) {
+        val safeSpeed = speed.coerceIn(0.5f, 2.5f)
+        val safePitch = pitch.coerceIn(0.5f, 2.0f)
+        _snapshot.value = _snapshot.value.copy(
+            playbackSpeed = safeSpeed,
+            playbackPitch = safePitch
+        )
+        try {
+            mediaPlayer?.playbackParams = PlaybackParams().setSpeed(safeSpeed).setPitch(safePitch)
+        } catch (e: Exception) {
+            Log.w("MusicPlaybackManager", "Could not set playback params: ${e.message}")
         }
     }
 

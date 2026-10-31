@@ -46,31 +46,46 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import com.example.model.AlbumItem
 import com.example.model.Song
+import com.example.model.VideoItem
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryAccent
+import com.example.ui.theme.SecondaryCyan
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
 import com.example.ui.theme.SurfaceVariantDark
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import java.io.File
 import java.util.Calendar
 
 @Composable
 fun HomeScreen(
     songs: List<Song>,
     albums: List<AlbumItem>,
+    videos: List<VideoItem> = emptyList(),
     currentSongId: String?,
     isPlaying: Boolean,
     onSongClick: (Song, List<Song>) -> Unit,
     onAlbumClick: (AlbumItem) -> Unit,
+    onVideoClick: (VideoItem) -> Unit = {},
     onScanMedia: () -> Unit,
     onAddSongs: () -> Unit,
     onDemoTracks: () -> Unit,
     onOpenEqualizer: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWrapped: () -> Unit = {},
+    onOpenAchievements: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Dynamic greeting based on time of day
@@ -81,6 +96,11 @@ fun HomeScreen(
             hour < 17 -> "Good afternoon"
             else -> "Good evening"
         }
+    }
+
+    // Continue Watching Videos (Feature 6)
+    val continueWatching = remember(videos) {
+        videos.filter { it.lastPositionMs > 1000L }.sortedByDescending { it.lastPositionMs }
     }
 
     // Curated sections
@@ -230,6 +250,111 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+        // Quick Action Chips (BeatWave Wrapped & Achievements)
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // BeatWave Wrapped Pill
+                Row(
+                    modifier = Modifier
+                        .testTag("home_wrapped_chip")
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(PrimaryViolet.copy(alpha = 0.2f))
+                        .border(1.dp, PrimaryViolet.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .clickable { onOpenWrapped() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Celebration,
+                        contentDescription = null,
+                        tint = PrimaryViolet,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "BeatWave Wrapped",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                }
+
+                // Achievements Pill
+                Row(
+                    modifier = Modifier
+                        .testTag("home_achievements_chip")
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(SecondaryAccent.copy(alpha = 0.2f))
+                        .border(1.dp, SecondaryAccent.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .clickable { onOpenAchievements() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = null,
+                        tint = SecondaryAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Badges & Stats",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                }
+            }
+        }
+
+        // Section: Continue Watching (Videos with progress)
+        if (continueWatching.isNotEmpty()) {
+            item {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Continue Watching",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                        Text(
+                            text = "${continueWatching.size} in progress",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(continueWatching, key = { it.id }) { video ->
+                            ContinueWatchingCard(
+                                video = video,
+                                onClick = { onVideoClick(video) }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -628,5 +753,111 @@ fun HomeAlbumCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+fun ContinueWatchingCard(
+    video: VideoItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val bitmap = remember(video.thumbnailPath) {
+        video.thumbnailPath?.let { path ->
+            try {
+                val f = File(path)
+                if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    val progress = if (video.durationMs > 0 && video.lastPositionMs > 0) {
+        (video.lastPositionMs.toFloat() / video.durationMs.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+
+    Column(
+        modifier = modifier
+            .testTag("continue_watching_${video.id}")
+            .width(170.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceDark)
+            .border(1.dp, Color(0x228B5CF6), RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(96.dp)
+                .background(SurfaceHighlightDark)
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = video.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Videocam,
+                        contentDescription = null,
+                        tint = PrimaryViolet,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            // Duration and progress overlay
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.75f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "${(video.lastPositionMs / 1000) / 60}:${String.format("%02d", (video.lastPositionMs / 1000) % 60)}",
+                    color = SecondaryCyan,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp),
+            color = PrimaryViolet,
+            trackColor = SurfaceHighlightDark
+        )
+
+        Column(modifier = Modifier.padding(10.dp)) {
+            Text(
+                text = video.title,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Resume playback",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 10.sp,
+                    color = TextSecondary
+                )
+            )
+        }
     }
 }

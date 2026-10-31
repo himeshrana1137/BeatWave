@@ -56,6 +56,8 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -108,6 +110,17 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlin.math.sin
 
+import android.widget.Toast
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mood
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.playback.LyricsRepository
+import com.example.util.NowPlayingCardGenerator
+import kotlinx.coroutines.launch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullScreenPlayer(
@@ -131,6 +144,8 @@ fun FullScreenPlayer(
     onSongInfo: ((Song) -> Unit)? = null,
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
+    onSetPlaybackSpeedAndPitch: ((speed: Float, pitch: Float) -> Unit)? = null,
+    onTagMood: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     BackHandler {
@@ -145,6 +160,11 @@ fun FullScreenPlayer(
     var showQueueSheet by remember { mutableStateOf(false) }
     var showLyricsView by remember { mutableStateOf(false) }
     var optionsMenuExpanded by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var showSpeedPitchSheet by remember { mutableStateOf(false) }
+    var currentSpeed by remember(snapshot.playbackSpeed) { mutableFloatStateOf(snapshot.playbackSpeed) }
+    var currentPitch by remember(snapshot.playbackPitch) { mutableFloatStateOf(snapshot.playbackPitch) }
+    var isFetchingLyrics by remember { mutableStateOf(false) }
 
     // Lyrics State
     var lyrics by remember { mutableStateOf<List<LyricLine>>(emptyList()) }
@@ -160,14 +180,19 @@ fun FullScreenPlayer(
         }
     }
 
-    // Load lyrics
+    // Load lyrics (auto LRCLIB fetch and local cache)
     LaunchedEffect(song.id, song.lyricsUriString) {
         if (!song.lyricsUriString.isNullOrBlank()) {
             lyrics = LrcParser.parseLrcFromUri(context, Uri.parse(song.lyricsUriString))
-        } else if (song.isDemoTrack) {
-            lyrics = LrcParser.generateDemoLyrics(song.title)
         } else {
-            lyrics = emptyList()
+            val fetched = LyricsRepository(context).getOrFetchLyrics(song)
+            if (fetched.isNotEmpty()) {
+                lyrics = fetched
+            } else if (song.isDemoTrack) {
+                lyrics = LrcParser.generateDemoLyrics(song.title)
+            } else {
+                lyrics = emptyList()
+            }
         }
     }
 
@@ -329,6 +354,58 @@ fun FullScreenPlayer(
                             onDismissRequest = { optionsMenuExpanded = false },
                             modifier = Modifier.background(SurfaceHighlightDark)
                         ) {
+                            // Feature 2: Playback Speed & Pitch
+                            DropdownMenuItem(
+                                text = { Text("Speed & Pitch (${String.format("%.2f", currentSpeed)}x)", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Speed,
+                                        contentDescription = null,
+                                        tint = SecondaryCyan
+                                    )
+                                },
+                                onClick = {
+                                    optionsMenuExpanded = false
+                                    showSpeedPitchSheet = true
+                                }
+                            )
+
+                            // Feature 13: Share Story Card
+                            DropdownMenuItem(
+                                text = { Text("Share Story Card", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Image,
+                                        contentDescription = null,
+                                        tint = PrimaryViolet
+                                    )
+                                },
+                                onClick = {
+                                    optionsMenuExpanded = false
+                                    coroutineScope.launch {
+                                        NowPlayingCardGenerator.generateAndShareCard(context, song)
+                                    }
+                                }
+                            )
+
+                            // Feature 12: Tag Mood Playlists
+                            onTagMood?.let { onTag ->
+                                DropdownMenuItem(
+                                    text = { Text("Tag Mood Playlists", color = TextPrimary) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Mood,
+                                            contentDescription = null,
+                                            tint = SecondaryAccent
+                                        )
+                                    },
+                                    onClick = {
+                                        optionsMenuExpanded = false
+                                        onTag(song)
+                                    }
+                                )
+                            }
+
                             onSongInfo?.let { onInfo ->
                                 DropdownMenuItem(
                                     text = { Text("Song Info", color = TextPrimary) },
@@ -347,7 +424,7 @@ fun FullScreenPlayer(
                             }
                             onShareSong?.let { onShare ->
                                 DropdownMenuItem(
-                                    text = { Text("Share Track", color = TextPrimary) },
+                                    text = { Text("Share Audio File", color = TextPrimary) },
                                     leadingIcon = {
                                         Icon(
                                             imageVector = Icons.Default.Share,
@@ -404,18 +481,46 @@ fun FullScreenPlayer(
                             text = if (lyrics.isNotEmpty()) "Line-by-line sync" else "No lyrics loaded",
                             style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
                         )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SurfaceHighlightDark)
-                                .clickable { lrcPickerLauncher.launch(arrayOf("*/*")) }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "Load .lrc",
-                                color = SecondaryCyan,
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(PrimaryViolet.copy(alpha = 0.2f))
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            isFetchingLyrics = true
+                                            val fetched = LyricsRepository(context).getOrFetchLyrics(song)
+                                            if (fetched.isNotEmpty()) {
+                                                lyrics = fetched
+                                                Toast.makeText(context, "Lyrics loaded!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "No lyrics found on LRCLIB", Toast.LENGTH_SHORT).show()
+                                            }
+                                            isFetchingLyrics = false
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (isFetchingLyrics) "Fetching..." else "Fetch LRCLIB",
+                                    color = PrimaryViolet,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SurfaceHighlightDark)
+                                    .clickable { lrcPickerLauncher.launch(arrayOf("*/*")) }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Load .lrc",
+                                    color = SecondaryCyan,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                            }
                         }
                     }
 
@@ -426,12 +531,45 @@ fun FullScreenPlayer(
                                 .padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Tap 'Load .lrc' to pick a synchronized lyrics file from device.",
-                                color = TextMuted,
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = "No lyrics loaded yet.\nBeatWave automatically queries LRCLIB for line-by-line synced lyrics.",
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            isFetchingLyrics = true
+                                            val fetched = LyricsRepository(context).getOrFetchLyrics(song)
+                                            if (fetched.isNotEmpty()) {
+                                                lyrics = fetched
+                                                Toast.makeText(context, "Lyrics synced!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "No lyrics found on LRCLIB", Toast.LENGTH_SHORT).show()
+                                            }
+                                            isFetchingLyrics = false
+                                        }
+                                    },
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                        containerColor = PrimaryViolet,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (isFetchingLyrics) "Searching..." else "Fetch from LRCLIB")
+                                }
+                            }
                         }
                     } else {
                         LazyColumn(
@@ -950,6 +1088,151 @@ fun FullScreenPlayer(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Feature 2: Playback Speed & Pitch Bottom Sheet
+    if (showSpeedPitchSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSpeedPitchSheet = false },
+            containerColor = SurfaceDark,
+            contentColor = TextPrimary,
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = SecondaryCyan,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "Playback Speed & Pitch",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            currentSpeed = 1.0f
+                            currentPitch = 1.0f
+                            onSetPlaybackSpeedAndPitch?.invoke(1.0f, 1.0f)
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RestartAlt,
+                            contentDescription = "Reset",
+                            tint = TextSecondary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Speed Slider (0.5x to 2.5x)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Speed", style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary))
+                    Text(
+                        "${String.format("%.2f", currentSpeed)}x",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = SecondaryCyan
+                        )
+                    )
+                }
+
+                Slider(
+                    value = currentSpeed,
+                    onValueChange = {
+                        currentSpeed = it
+                        onSetPlaybackSpeedAndPitch?.invoke(currentSpeed, currentPitch)
+                    },
+                    valueRange = 0.5f..2.5f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = SecondaryCyan,
+                        activeTrackColor = SecondaryCyan,
+                        inactiveTrackColor = SurfaceHighlightDark
+                    )
+                )
+
+                // Quick speed presets
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { preset ->
+                        val isSelected = kotlin.math.abs(currentSpeed - preset) < 0.04f
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) SecondaryCyan else SurfaceHighlightDark)
+                                .clickable {
+                                    currentSpeed = preset
+                                    onSetPlaybackSpeedAndPitch?.invoke(preset, currentPitch)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "${preset}x",
+                                color = if (isSelected) Color.Black else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Pitch Slider (0.5x to 2.0x)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Pitch", style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary))
+                    Text(
+                        "${String.format("%.2f", currentPitch)}x",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryViolet
+                        )
+                    )
+                }
+
+                Slider(
+                    value = currentPitch,
+                    onValueChange = {
+                        currentPitch = it
+                        onSetPlaybackSpeedAndPitch?.invoke(currentSpeed, currentPitch)
+                    },
+                    valueRange = 0.5f..2.0f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = PrimaryViolet,
+                        activeTrackColor = PrimaryViolet,
+                        inactiveTrackColor = SurfaceHighlightDark
+                    )
+                )
             }
         }
     }
