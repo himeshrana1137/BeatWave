@@ -24,11 +24,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +42,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.example.model.ContainerSortMode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +83,13 @@ fun PlaylistsView(
     onSongClick: (Song) -> Unit,
     onToggleFavorite: (Song) -> Unit,
     onRemoveSongFromPlaylist: (String, String) -> Unit,
+    onReorderPlaylistSongs: ((playlistId: String, newSongs: List<Song>) -> Unit)? = null,
+    onPlayNext: ((Song) -> Unit)? = null,
+    onAddToQueue: ((Song) -> Unit)? = null,
+    onSongInfo: ((Song) -> Unit)? = null,
+    onShareSong: ((Song) -> Unit)? = null,
+    onCutRingtone: ((Song) -> Unit)? = null,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     if (selectedPlaylist != null) {
@@ -79,8 +98,22 @@ fun PlaylistsView(
             onSelectPlaylist(null)
         }
 
+        val context = LocalContext.current
+        val repository = remember { com.example.data.MusicRepository(context) }
+        val containerKey = "playlist_${selectedPlaylist.id}"
+
+        var sortMode by remember(selectedPlaylist.id) {
+            mutableStateOf(repository.getContainerSort(containerKey))
+        }
+
         val songMap = allSongs.associateBy { it.id }
-        val playlistSongs = selectedPlaylist.songIds.mapNotNull { songMap[it] }
+        val rawPlaylistSongs = selectedPlaylist.songIds.mapNotNull { songMap[it] }
+
+        var displayedSongs by remember(selectedPlaylist.id, rawPlaylistSongs, sortMode) {
+            mutableStateOf(repository.resolveContainerSongs(containerKey, rawPlaylistSongs, sortMode).first)
+        }
+
+        var sortMenuExpanded by remember { mutableStateOf(false) }
 
         Column(
             modifier = modifier
@@ -120,7 +153,7 @@ fun PlaylistsView(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${playlistSongs.size} tracks • ${if (selectedPlaylist.description.isNotBlank()) selectedPlaylist.description else "Custom Playlist"}",
+                        text = "${displayedSongs.size} tracks • ${if (selectedPlaylist.description.isNotBlank()) selectedPlaylist.description else "Custom Playlist"}",
                         style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -132,12 +165,12 @@ fun PlaylistsView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { onPlayPlaylist(selectedPlaylist, false) },
-                    enabled = playlistSongs.isNotEmpty(),
+                    onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), false) },
+                    enabled = displayedSongs.isNotEmpty(),
                     modifier = Modifier
                         .testTag("play_all_playlist_button")
                         .weight(1f)
@@ -158,8 +191,8 @@ fun PlaylistsView(
                 }
 
                 OutlinedButton(
-                    onClick = { onPlayPlaylist(selectedPlaylist, true) },
-                    enabled = playlistSongs.isNotEmpty(),
+                    onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), true) },
+                    enabled = displayedSongs.isNotEmpty(),
                     modifier = Modifier
                         .testTag("shuffle_playlist_button")
                         .weight(1f)
@@ -182,7 +215,147 @@ fun PlaylistsView(
                 }
             }
 
-            if (playlistSongs.isEmpty()) {
+            // Sort & Reorder Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (sortMode == ContainerSortMode.CUSTOM) "Custom Order (Drag ≡)" else sortMode.displayName,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = if (sortMode == ContainerSortMode.CUSTOM) PrimaryNeon else SecondaryCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+
+                Box {
+                    Button(
+                        onClick = { sortMenuExpanded = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceHighlightDark),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sort,
+                            contentDescription = "Sort playlist",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Sort",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = sortMenuExpanded,
+                        onDismissRequest = { sortMenuExpanded = false },
+                        modifier = Modifier.background(SurfaceHighlightDark)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Custom Order ≡",
+                                    color = if (sortMode == ContainerSortMode.CUSTOM) PrimaryNeon else TextPrimary,
+                                    fontWeight = if (sortMode == ContainerSortMode.CUSTOM) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                sortMode = ContainerSortMode.CUSTOM
+                                repository.saveContainerSort(containerKey, ContainerSortMode.CUSTOM)
+                                displayedSongs = repository.resolveContainerSongs(containerKey, rawPlaylistSongs, ContainerSortMode.CUSTOM).first
+                                sortMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Title (A-Z)",
+                                    color = if (sortMode == ContainerSortMode.TITLE) PrimaryNeon else TextPrimary
+                                )
+                            },
+                            onClick = {
+                                sortMode = ContainerSortMode.TITLE
+                                repository.saveContainerSort(containerKey, ContainerSortMode.TITLE)
+                                displayedSongs = repository.resolveContainerSongs(containerKey, rawPlaylistSongs, ContainerSortMode.TITLE).first
+                                sortMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Artist (A-Z)",
+                                    color = if (sortMode == ContainerSortMode.ARTIST) PrimaryNeon else TextPrimary
+                                )
+                            },
+                            onClick = {
+                                sortMode = ContainerSortMode.ARTIST
+                                repository.saveContainerSort(containerKey, ContainerSortMode.ARTIST)
+                                displayedSongs = repository.resolveContainerSongs(containerKey, rawPlaylistSongs, ContainerSortMode.ARTIST).first
+                                sortMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Date Added",
+                                    color = if (sortMode == ContainerSortMode.DATE) PrimaryNeon else TextPrimary
+                                )
+                            },
+                            onClick = {
+                                sortMode = ContainerSortMode.DATE
+                                repository.saveContainerSort(containerKey, ContainerSortMode.DATE)
+                                displayedSongs = repository.resolveContainerSongs(containerKey, rawPlaylistSongs, ContainerSortMode.DATE).first
+                                sortMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Duration",
+                                    color = if (sortMode == ContainerSortMode.DURATION) PrimaryNeon else TextPrimary
+                                )
+                            },
+                            onClick = {
+                                sortMode = ContainerSortMode.DURATION
+                                repository.saveContainerSort(containerKey, ContainerSortMode.DURATION)
+                                displayedSongs = repository.resolveContainerSongs(containerKey, rawPlaylistSongs, ContainerSortMode.DURATION).first
+                                sortMenuExpanded = false
+                            }
+                        )
+                        HorizontalDivider(color = CardBorder)
+                        DropdownMenuItem(
+                            text = { Text("Reset Order", color = TextSecondary) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.RestartAlt,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                repository.clearCustomOrder(containerKey)
+                                repository.saveContainerSort(containerKey, ContainerSortMode.DEFAULT)
+                                sortMode = ContainerSortMode.DEFAULT
+                                displayedSongs = repository.resolveContainerSongs(containerKey, rawPlaylistSongs, ContainerSortMode.DEFAULT).first
+                                sortMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (displayedSongs.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -211,26 +384,41 @@ fun PlaylistsView(
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(playlistSongs, key = { it.id }) { song ->
-                        val isTrackCurrent = song.id == currentSongId
-                        SongItemCard(
-                            song = song,
-                            isCurrent = isTrackCurrent,
-                            isPlaying = isTrackCurrent && isPlaying,
-                            onSongClick = { onSongClick(song) },
-                            onToggleFavorite = { onToggleFavorite(song) },
-                            onAddToPlaylist = {},
-                            onDeleteSong = {
-                                onRemoveSongFromPlaylist(selectedPlaylist.id, song.id)
-                            }
-                        )
-                    }
-                }
+                ReorderableSongList(
+                    songs = displayedSongs,
+                    isCustomOrder = sortMode == ContainerSortMode.CUSTOM,
+                    currentSongId = currentSongId,
+                    isPlaying = isPlaying,
+                    onSongClick = onSongClick,
+                    onToggleFavorite = onToggleFavorite,
+                    onAddToPlaylist = {},
+                    onDeleteSong = { song ->
+                        onRemoveSongFromPlaylist(selectedPlaylist.id, song.id)
+                        val updated = displayedSongs.filter { it.id != song.id }
+                        displayedSongs = updated
+                        repository.saveCustomOrder(containerKey, updated.map { it.id })
+                    },
+                    onPlayNext = { onPlayNext?.invoke(it) },
+                    onAddToQueue = { onAddToQueue?.invoke(it) },
+                    onReorder = { fromIdx, toIdx ->
+                        if (fromIdx in displayedSongs.indices && toIdx in displayedSongs.indices) {
+                            val mutable = displayedSongs.toMutableList()
+                            val item = mutable.removeAt(fromIdx)
+                            mutable.add(toIdx, item)
+                            displayedSongs = mutable
+                            sortMode = ContainerSortMode.CUSTOM
+                            repository.saveCustomOrder(containerKey, mutable.map { it.id })
+                            repository.saveContainerSort(containerKey, ContainerSortMode.CUSTOM)
+                            onReorderPlaylistSongs?.invoke(selectedPlaylist.id, mutable)
+                        }
+                    },
+                    onSongInfo = onSongInfo,
+                    onShareSong = onShareSong,
+                    onCutRingtone = onCutRingtone,
+                    showQualityBadges = showQualityBadges,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     } else {

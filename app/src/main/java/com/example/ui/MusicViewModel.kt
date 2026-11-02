@@ -13,6 +13,7 @@ import com.example.data.MusicRepository
 import com.example.model.AlbumItem
 import com.example.model.AppSettings
 import com.example.model.ArtistItem
+import com.example.model.ContainerSortMode
 import com.example.model.DuplicateSongGroup
 import com.example.model.FolderItem
 import com.example.model.MainBottomTab
@@ -404,8 +405,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         var list = when {
             playlist != null -> {
-                val idSet = playlist.songIds.toSet()
-                songsList.filter { idSet.contains(it.id) }
+                val containerKey = "playlist_${playlist.id}"
+                val songMap = songsList.associateBy { it.id }
+                val rawSongs = playlist.songIds.mapNotNull { songMap[it] }
+                repository.resolveContainerSongs(containerKey, rawSongs).first
             }
             album != null -> {
                 songsList.filter { it.album == album.title }
@@ -414,7 +417,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 songsList.filter { it.artist == artist.name }
             }
             folder != null -> {
-                songsList.filter { (it.folderName.ifBlank { "Music" }) == folder.name }
+                val containerKey = "folder_${folder.path.ifBlank { folder.name }}"
+                val rawSongs = songsList.filter { (it.folderName.ifBlank { "Music" }) == folder.name }
+                repository.resolveContainerSongs(containerKey, rawSongs).first
             }
             tab == NavigationTab.FAVORITES -> {
                 songsList.filter { it.isFavorite }
@@ -744,9 +749,63 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         playbackManager.playSong(song, contextList)
     }
 
+    fun playNext(song: Song) {
+        playbackManager.playNext(song)
+    }
+
+    fun addToQueue(song: Song) {
+        playbackManager.addToQueue(song)
+    }
+
+    fun resolveContainerSongs(containerKey: String, rawSongs: List<Song>, explicitSort: ContainerSortMode? = null): Pair<List<Song>, ContainerSortMode> {
+        return repository.resolveContainerSongs(containerKey, rawSongs, explicitSort)
+    }
+
+    fun reorderContainerSongs(containerKey: String, newSongs: List<Song>) {
+        val songIds = newSongs.map { it.id }
+        repository.saveCustomOrder(containerKey, songIds)
+        repository.saveContainerSort(containerKey, ContainerSortMode.CUSTOM)
+
+        if (containerKey.startsWith("playlist_")) {
+            val playlistId = containerKey.removePrefix("playlist_")
+            val currentPlaylists = _playlists.value.map { pl ->
+                if (pl.id == playlistId) pl.copy(songIds = songIds) else pl
+            }
+            _playlists.value = currentPlaylists
+            viewModelScope.launch {
+                repository.savePlaylists(currentPlaylists)
+            }
+            _selectedPlaylist.value?.let { sel ->
+                if (sel.id == playlistId) {
+                    _selectedPlaylist.value = sel.copy(songIds = songIds)
+                }
+            }
+        } else if (containerKey.startsWith("folder_")) {
+            _selectedFolder.value?.let { sel ->
+                _selectedFolder.value = sel.copy(songs = newSongs)
+            }
+        }
+
+        // Sync queue in full-screen player if playing this container
+        if (playbackSnapshot.value.currentSong != null && newSongs.any { it.id == playbackSnapshot.value.currentSong?.id }) {
+            playbackManager.updateQueueOrder(newSongs)
+        }
+    }
+
+    fun setContainerSort(containerKey: String, sortMode: ContainerSortMode) {
+        repository.saveContainerSort(containerKey, sortMode)
+    }
+
+    fun resetContainerOrder(containerKey: String) {
+        repository.clearCustomOrder(containerKey)
+        repository.saveContainerSort(containerKey, ContainerSortMode.DEFAULT)
+    }
+
     fun playSelectedPlaylist(playlist: Playlist, shuffle: Boolean = false) {
-        val idSet = playlist.songIds.toSet()
-        val playlistSongs = _songs.value.filter { idSet.contains(it.id) }
+        val containerKey = "playlist_${playlist.id}"
+        val songMap = _songs.value.associateBy { it.id }
+        val rawSongs = playlist.songIds.mapNotNull { songMap[it] }
+        val playlistSongs = repository.resolveContainerSongs(containerKey, rawSongs).first
         if (playlistSongs.isEmpty()) return
 
         val queue = if (shuffle) playlistSongs.shuffled() else playlistSongs

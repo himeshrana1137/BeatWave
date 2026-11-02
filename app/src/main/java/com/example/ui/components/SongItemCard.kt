@@ -14,13 +14,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -48,6 +55,7 @@ import com.example.ui.theme.AccentPink
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryAccent
+import com.example.ui.theme.SecondaryCyan
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
 import com.example.ui.theme.TextMuted
@@ -67,6 +75,15 @@ fun SongItemCard(
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
     showQualityBadges: Boolean = true,
+    showDragHandle: Boolean = false,
+    isCustomOrder: Boolean = true,
+    dragHandleModifier: Modifier = Modifier,
+    onPlayNext: ((Song) -> Unit)? = null,
+    onAddToQueue: ((Song) -> Unit)? = null,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
+    onMoveToTop: (() -> Unit)? = null,
+    onMoveToBottom: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -195,6 +212,108 @@ fun SongItemCard(
                 onDismissRequest = { menuExpanded = false },
                 modifier = Modifier.background(SurfaceHighlightDark)
             ) {
+                onPlayNext?.let { playNextAction ->
+                    DropdownMenuItem(
+                        text = { Text("Play Next", color = TextPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PlaylistPlay,
+                                contentDescription = null,
+                                tint = PrimaryViolet
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            playNextAction(song)
+                        }
+                    )
+                }
+
+                onAddToQueue?.let { addToQueueAction ->
+                    DropdownMenuItem(
+                        text = { Text("Add to Queue", color = TextPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.QueueMusic,
+                                contentDescription = null,
+                                tint = SecondaryAccent
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            addToQueueAction(song)
+                        }
+                    )
+                }
+
+                onMoveToTop?.let { moveToTopAction ->
+                    DropdownMenuItem(
+                        text = { Text("Move to Top", color = TextPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.VerticalAlignTop,
+                                contentDescription = null,
+                                tint = SecondaryCyan
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            moveToTopAction()
+                        }
+                    )
+                }
+
+                onMoveUp?.let { moveUpAction ->
+                    DropdownMenuItem(
+                        text = { Text("Move Up", color = TextPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ArrowUpward,
+                                contentDescription = null,
+                                tint = SecondaryCyan
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            moveUpAction()
+                        }
+                    )
+                }
+
+                onMoveDown?.let { moveDownAction ->
+                    DropdownMenuItem(
+                        text = { Text("Move Down", color = TextPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDownward,
+                                contentDescription = null,
+                                tint = SecondaryCyan
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            moveDownAction()
+                        }
+                    )
+                }
+
+                onMoveToBottom?.let { moveToBottomAction ->
+                    DropdownMenuItem(
+                        text = { Text("Move to Bottom", color = TextPrimary) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.VerticalAlignBottom,
+                                contentDescription = null,
+                                tint = SecondaryCyan
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            moveToBottomAction()
+                        }
+                    )
+                }
+
                 DropdownMenuItem(
                     text = { Text("Add to Playlist", color = TextPrimary) },
                     leadingIcon = {
@@ -270,6 +389,23 @@ fun SongItemCard(
                         menuExpanded = false
                         onDeleteSong(song)
                     }
+                )
+            }
+        }
+
+        // Reorder Drag Handle (≡)
+        if (showDragHandle) {
+            Box(
+                modifier = dragHandleModifier
+                    .testTag("drag_handle_${song.id}")
+                    .size(38.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DragHandle,
+                    contentDescription = "Reorder song (Long-press & drag)",
+                    tint = if (isCustomOrder) TextSecondary else TextMuted.copy(alpha = 0.35f),
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

@@ -17,6 +17,7 @@ import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
 import com.example.model.AppSettings
+import com.example.model.ContainerSortMode
 import com.example.model.DuplicateSongGroup
 import com.example.model.ListeningStats
 import com.example.model.Playlist
@@ -61,6 +62,8 @@ class MusicRepository(private val context: Context) {
         private const val KEY_REDUCE_ANIM = "key_reduce_anim"
         private const val KEY_FETCH_ONLINE_COVER = "key_fetch_online_cover"
         private const val KEY_SHOW_QUALITY_BADGES = "key_show_quality_badges"
+        private const val KEY_CUSTOM_ORDERS = "key_custom_orders"
+        private const val KEY_CONTAINER_SORTS = "key_container_sorts"
     }
 
     fun isVisualizerEnabled(): Boolean {
@@ -577,6 +580,103 @@ class MusicRepository(private val context: Context) {
             jsonArray.put(obj)
         }
         prefs.edit().putString(KEY_PLAYLISTS, jsonArray.toString()).apply()
+    }
+
+    // Container (Playlist / Folder) Custom Ordering and Sorting
+    fun saveCustomOrder(containerKey: String, songIds: List<String>) {
+        try {
+            val jsonStr = prefs.getString(KEY_CUSTOM_ORDERS, "{}") ?: "{}"
+            val root = JSONObject(jsonStr)
+            val arr = JSONArray()
+            songIds.forEach { arr.put(it) }
+            root.put(containerKey, arr)
+            prefs.edit().putString(KEY_CUSTOM_ORDERS, root.toString()).apply()
+        } catch (e: Exception) {
+            Log.e("MusicRepository", "Error saving custom order for $containerKey: ${e.message}")
+        }
+    }
+
+    fun getCustomOrder(containerKey: String): List<String>? {
+        return try {
+            val jsonStr = prefs.getString(KEY_CUSTOM_ORDERS, "{}") ?: "{}"
+            val root = JSONObject(jsonStr)
+            if (!root.has(containerKey)) return null
+            val arr = root.getJSONArray(containerKey)
+            (0 until arr.length()).map { arr.getString(it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun clearCustomOrder(containerKey: String) {
+        try {
+            val jsonStr = prefs.getString(KEY_CUSTOM_ORDERS, "{}") ?: "{}"
+            val root = JSONObject(jsonStr)
+            if (root.has(containerKey)) {
+                root.remove(containerKey)
+                prefs.edit().putString(KEY_CUSTOM_ORDERS, root.toString()).apply()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun saveContainerSort(containerKey: String, sortMode: ContainerSortMode) {
+        try {
+            val jsonStr = prefs.getString(KEY_CONTAINER_SORTS, "{}") ?: "{}"
+            val root = JSONObject(jsonStr)
+            root.put(containerKey, sortMode.name)
+            prefs.edit().putString(KEY_CONTAINER_SORTS, root.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getContainerSort(containerKey: String): ContainerSortMode {
+        return try {
+            val jsonStr = prefs.getString(KEY_CONTAINER_SORTS, "{}") ?: "{}"
+            val root = JSONObject(jsonStr)
+            if (root.has(containerKey)) {
+                ContainerSortMode.valueOf(root.getString(containerKey))
+            } else {
+                if (getCustomOrder(containerKey) != null) ContainerSortMode.CUSTOM else ContainerSortMode.DEFAULT
+            }
+        } catch (_: Exception) {
+            if (getCustomOrder(containerKey) != null) ContainerSortMode.CUSTOM else ContainerSortMode.DEFAULT
+        }
+    }
+
+    /**
+     * Resolves songs for a playlist or folder applying custom ordering and sorting.
+     * New songs found by rescan go to the end. Deleted songs are automatically removed.
+     */
+    fun resolveContainerSongs(
+        containerKey: String,
+        rawSongs: List<Song>,
+        explicitSort: ContainerSortMode? = null
+    ): Pair<List<Song>, ContainerSortMode> {
+        val activeSort = explicitSort ?: getContainerSort(containerKey)
+        val songMap = rawSongs.associateBy { it.id }
+
+        val orderedList = when (activeSort) {
+            ContainerSortMode.CUSTOM -> {
+                val savedIds = getCustomOrder(containerKey)
+                if (savedIds != null && savedIds.isNotEmpty()) {
+                    // 1. Keep songs in saved order (ignoring any that were deleted)
+                    val result = savedIds.mapNotNull { songMap[it] }.toMutableList()
+                    val existingIds = result.map { it.id }.toSet()
+                    // 2. Append any new songs not previously in the custom order to the end
+                    val newSongs = rawSongs.filterNot { existingIds.contains(it.id) }
+                    result.addAll(newSongs)
+                    result
+                } else {
+                    rawSongs
+                }
+            }
+            ContainerSortMode.TITLE -> rawSongs.sortedBy { it.title.lowercase() }
+            ContainerSortMode.ARTIST -> rawSongs.sortedBy { it.artist.lowercase() }
+            ContainerSortMode.DATE -> rawSongs.sortedByDescending { it.dateAdded }
+            ContainerSortMode.DURATION -> rawSongs.sortedByDescending { it.durationMs }
+            ContainerSortMode.DEFAULT -> rawSongs
+        }
+
+        return Pair(orderedList, activeSort)
     }
 
     // Video Storage

@@ -204,6 +204,58 @@ class MusicPlaybackManager(private val context: Context) {
         }
     }
 
+    fun playNext(song: Song) {
+        if (activeQueue.isEmpty()) {
+            playSong(song)
+            return
+        }
+        val currentIndex = _snapshot.value.currentQueueIndex
+        val targetIndex = (currentIndex + 1).coerceIn(0, activeQueue.size)
+        val existingIndex = activeQueue.indexOfFirst { it.id == song.id }
+        if (existingIndex > currentIndex) {
+            activeQueue.removeAt(existingIndex)
+            originalQueue.removeAll { it.id == song.id }
+        }
+        activeQueue.add(targetIndex, song)
+        originalQueue.add(targetIndex.coerceIn(0, originalQueue.size), song)
+        val newCurrentIndex = activeQueue.indexOfFirst { it.id == _snapshot.value.currentSong?.id }
+        _snapshot.value = _snapshot.value.copy(
+            queue = activeQueue.toList(),
+            currentQueueIndex = newCurrentIndex
+        )
+    }
+
+    fun addToQueue(song: Song) {
+        if (activeQueue.isEmpty()) {
+            playSong(song)
+            return
+        }
+        activeQueue.add(song)
+        originalQueue.add(song)
+        val currentSong = _snapshot.value.currentSong
+        val newCurrentIndex = activeQueue.indexOfFirst { it.id == currentSong?.id }
+        _snapshot.value = _snapshot.value.copy(
+            queue = activeQueue.toList(),
+            currentQueueIndex = newCurrentIndex
+        )
+    }
+
+    fun updateQueueOrder(newOrder: List<Song>) {
+        if (activeQueue.isEmpty()) return
+        val currentSong = _snapshot.value.currentSong
+        originalQueue.clear()
+        originalQueue.addAll(newOrder)
+        if (!_snapshot.value.isShuffle) {
+            activeQueue.clear()
+            activeQueue.addAll(newOrder)
+            val newIndex = activeQueue.indexOfFirst { it.id == currentSong?.id }
+            _snapshot.value = _snapshot.value.copy(
+                queue = activeQueue.toList(),
+                currentQueueIndex = newIndex
+            )
+        }
+    }
+
     private fun playIndex(index: Int) {
         if (index !in activeQueue.indices) return
 

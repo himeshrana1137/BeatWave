@@ -66,6 +66,8 @@ fun SearchScreen(
     onSongInfo: ((Song) -> Unit)? = null,
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
+    onPlayNext: ((Song) -> Unit)? = null,
+    onAddToQueue: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -262,7 +264,9 @@ fun SearchScreen(
                             onDeleteSong = { onDeleteSong(song) },
                             onSongInfo = onSongInfo,
                             onShareSong = onShareSong,
-                            onCutRingtone = onCutRingtone
+                            onCutRingtone = onCutRingtone,
+                            onPlayNext = onPlayNext,
+                            onAddToQueue = onAddToQueue
                         )
                     }
                 }

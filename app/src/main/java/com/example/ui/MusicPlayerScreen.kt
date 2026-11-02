@@ -391,7 +391,9 @@ fun MusicPlayerScreen(
                                 },
                                 onSongInfo = { viewModel.openSongInfo(it) },
                                 onShareSong = { MediaShareHelper.shareSong(context, it) },
-                                onCutRingtone = { viewModel.openRingtoneCutter(it) }
+                                onCutRingtone = { viewModel.openRingtoneCutter(it) },
+                                onPlayNext = { viewModel.playNext(it) },
+                                onAddToQueue = { viewModel.addToQueue(it) }
                             )
                         }
 
@@ -431,7 +433,11 @@ fun MusicPlayerScreen(
                                 onShuffleGroup = { list -> viewModel.shuffleGroup(list) },
                                 onSongInfo = { viewModel.openSongInfo(it) },
                                 onShareSong = { MediaShareHelper.shareSong(context, it) },
-                                onCutRingtone = { viewModel.openRingtoneCutter(it) }
+                                onCutRingtone = { viewModel.openRingtoneCutter(it) },
+                                onPlayNext = { viewModel.playNext(it) },
+                                onAddToQueue = { viewModel.addToQueue(it) },
+                                onReorderPlaylistSongs = { id, list -> viewModel.reorderContainerSongs("playlist_$id", list) },
+                                onReorderFolderSongs = { key, list -> viewModel.reorderContainerSongs("folder_$key", list) }
                             )
                         }
 

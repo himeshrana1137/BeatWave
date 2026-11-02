@@ -30,11 +30,13 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +47,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.example.model.AudioQualityFilter
+import com.example.model.ContainerSortMode
 import com.example.model.SortOption
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +66,11 @@ import com.example.model.FolderItem
 import com.example.model.NavigationTab
 import com.example.model.Playlist
 import com.example.model.Song
+import com.example.ui.theme.CardBorder
+import com.example.ui.theme.PrimaryNeon
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryAccent
+import com.example.ui.theme.SecondaryCyan
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
 import com.example.ui.theme.SurfaceVariantDark
@@ -108,6 +115,10 @@ fun LibraryScreen(
     onAudioQualityFilterSelected: (AudioQualityFilter) -> Unit = {},
     sortOption: SortOption = SortOption.DATE_ADDED_DESC,
     onSortOptionSelected: (SortOption) -> Unit = {},
+    onPlayNext: ((Song) -> Unit)? = null,
+    onAddToQueue: ((Song) -> Unit)? = null,
+    onReorderPlaylistSongs: ((playlistId: String, newSongs: List<Song>) -> Unit)? = null,
+    onReorderFolderSongs: ((folderKey: String, newSongs: List<Song>) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Intercept back presses when inside a detail view
@@ -244,6 +255,8 @@ fun LibraryScreen(
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
                                     onDeleteSong = { onDeleteSong(song) },
+                                    onPlayNext = onPlayNext,
+                                    onAddToQueue = onAddToQueue,
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
                                     onCutRingtone = onCutRingtone,
@@ -288,6 +301,8 @@ fun LibraryScreen(
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
                                     onDeleteSong = { onDeleteSong(song) },
+                                    onPlayNext = onPlayNext,
+                                    onAddToQueue = onAddToQueue,
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
                                     onCutRingtone = onCutRingtone,
@@ -300,10 +315,25 @@ fun LibraryScreen(
 
                 // Selected Folder Detail View
                 selectedFolder != null -> {
+                    val context = LocalContext.current
+                    val repository = remember { com.example.data.MusicRepository(context) }
+                    val folderKey = selectedFolder.path.ifBlank { selectedFolder.name }
+                    val containerKey = "folder_$folderKey"
+
+                    var sortMode by remember(folderKey) {
+                        mutableStateOf(repository.getContainerSort(containerKey))
+                    }
+
+                    var displayedSongs by remember(folderKey, selectedFolder.songs, sortMode) {
+                        mutableStateOf(repository.resolveContainerSongs(containerKey, selectedFolder.songs, sortMode).first)
+                    }
+
+                    var sortMenuExpanded by remember { mutableStateOf(false) }
+
                     Column(modifier = Modifier.fillMaxSize()) {
                         GroupDetailHeader(
                             title = selectedFolder.name,
-                            subtitle = if (selectedFolder.path.isNotBlank()) selectedFolder.path else "${selectedFolder.songCount} tracks",
+                            subtitle = if (selectedFolder.path.isNotBlank()) selectedFolder.path else "${displayedSongs.size} tracks",
                             artPath = null,
                             icon = {
                                 Icon(
@@ -312,33 +342,180 @@ fun LibraryScreen(
                                     tint = PrimaryViolet
                                 )
                             },
-                            songs = selectedFolder.songs,
+                            songs = displayedSongs,
                             onBack = { onSelectFolder(null) },
-                            onPlayAll = { onPlayGroup(selectedFolder.songs, 0) },
-                            onShuffle = { onShuffleGroup(selectedFolder.songs) }
+                            onPlayAll = { onPlayGroup(displayedSongs, 0) },
+                            onShuffle = { onShuffleGroup(displayedSongs) }
                         )
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+
+                        // Sort & Reorder Bar for Folder
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            items(selectedFolder.songs, key = { it.id }) { song ->
-                                val isCurrent = song.id == currentSongId
-                                SongItemCard(
-                                    song = song,
-                                    isCurrent = isCurrent,
-                                    isPlaying = isCurrent && isPlaying,
-                                    onSongClick = { onSongClick(song, selectedFolder.songs) },
-                                    onToggleFavorite = { onToggleFavorite(song) },
-                                    onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) },
-                                    onSongInfo = onSongInfo,
-                                    onShareSong = onShareSong,
-                                    onCutRingtone = onCutRingtone,
-                                    showQualityBadges = showQualityBadges
+                            Text(
+                                text = if (sortMode == ContainerSortMode.CUSTOM) "Custom Order (Drag ≡)" else sortMode.displayName,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = if (sortMode == ContainerSortMode.CUSTOM) PrimaryNeon else SecondaryCyan,
+                                    fontWeight = FontWeight.Bold
                                 )
+                            )
+
+                            Box {
+                                Button(
+                                    onClick = { sortMenuExpanded = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceHighlightDark),
+                                    shape = RoundedCornerShape(20.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sort,
+                                        contentDescription = "Sort folder songs",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Sort",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color.White
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = sortMenuExpanded,
+                                    onDismissRequest = { sortMenuExpanded = false },
+                                    modifier = Modifier.background(SurfaceHighlightDark)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Custom Order ≡",
+                                                color = if (sortMode == ContainerSortMode.CUSTOM) PrimaryNeon else TextPrimary,
+                                                fontWeight = if (sortMode == ContainerSortMode.CUSTOM) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        onClick = {
+                                            sortMode = ContainerSortMode.CUSTOM
+                                            repository.saveContainerSort(containerKey, ContainerSortMode.CUSTOM)
+                                            displayedSongs = repository.resolveContainerSongs(containerKey, selectedFolder.songs, ContainerSortMode.CUSTOM).first
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Title (A-Z)",
+                                                color = if (sortMode == ContainerSortMode.TITLE) PrimaryNeon else TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            sortMode = ContainerSortMode.TITLE
+                                            repository.saveContainerSort(containerKey, ContainerSortMode.TITLE)
+                                            displayedSongs = repository.resolveContainerSongs(containerKey, selectedFolder.songs, ContainerSortMode.TITLE).first
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Artist (A-Z)",
+                                                color = if (sortMode == ContainerSortMode.ARTIST) PrimaryNeon else TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            sortMode = ContainerSortMode.ARTIST
+                                            repository.saveContainerSort(containerKey, ContainerSortMode.ARTIST)
+                                            displayedSongs = repository.resolveContainerSongs(containerKey, selectedFolder.songs, ContainerSortMode.ARTIST).first
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Date Added",
+                                                color = if (sortMode == ContainerSortMode.DATE) PrimaryNeon else TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            sortMode = ContainerSortMode.DATE
+                                            repository.saveContainerSort(containerKey, ContainerSortMode.DATE)
+                                            displayedSongs = repository.resolveContainerSongs(containerKey, selectedFolder.songs, ContainerSortMode.DATE).first
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Duration",
+                                                color = if (sortMode == ContainerSortMode.DURATION) PrimaryNeon else TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            sortMode = ContainerSortMode.DURATION
+                                            repository.saveContainerSort(containerKey, ContainerSortMode.DURATION)
+                                            displayedSongs = repository.resolveContainerSongs(containerKey, selectedFolder.songs, ContainerSortMode.DURATION).first
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    HorizontalDivider(color = CardBorder)
+                                    DropdownMenuItem(
+                                        text = { Text("Reset Order", color = TextSecondary) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.RestartAlt,
+                                                contentDescription = null,
+                                                tint = TextSecondary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            repository.clearCustomOrder(containerKey)
+                                            repository.saveContainerSort(containerKey, ContainerSortMode.DEFAULT)
+                                            sortMode = ContainerSortMode.DEFAULT
+                                            displayedSongs = repository.resolveContainerSongs(containerKey, selectedFolder.songs, ContainerSortMode.DEFAULT).first
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
+
+                        ReorderableSongList(
+                            songs = displayedSongs,
+                            isCustomOrder = sortMode == ContainerSortMode.CUSTOM,
+                            currentSongId = currentSongId,
+                            isPlaying = isPlaying,
+                            onSongClick = { onSongClick(it, displayedSongs) },
+                            onToggleFavorite = onToggleFavorite,
+                            onAddToPlaylist = onAddToPlaylist,
+                            onDeleteSong = onDeleteSong,
+                            onPlayNext = { onPlayNext?.invoke(it) },
+                            onAddToQueue = { onAddToQueue?.invoke(it) },
+                            onReorder = { fromIdx, toIdx ->
+                                if (fromIdx in displayedSongs.indices && toIdx in displayedSongs.indices) {
+                                    val mutable = displayedSongs.toMutableList()
+                                    val item = mutable.removeAt(fromIdx)
+                                    mutable.add(toIdx, item)
+                                    displayedSongs = mutable
+                                    sortMode = ContainerSortMode.CUSTOM
+                                    repository.saveCustomOrder(containerKey, mutable.map { it.id })
+                                    repository.saveContainerSort(containerKey, ContainerSortMode.CUSTOM)
+                                    onReorderFolderSongs?.invoke(folderKey, mutable)
+                                }
+                            },
+                            onSongInfo = onSongInfo,
+                            onShareSong = onShareSong,
+                            onCutRingtone = onCutRingtone,
+                            showQualityBadges = showQualityBadges,
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 120.dp),
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
 
@@ -356,7 +533,14 @@ fun LibraryScreen(
                         onPlayPlaylist = onPlayPlaylist,
                         onSongClick = { onSongClick(it, songs) },
                         onToggleFavorite = onToggleFavorite,
-                        onRemoveSongFromPlaylist = onRemoveSongFromPlaylist
+                        onRemoveSongFromPlaylist = onRemoveSongFromPlaylist,
+                        onReorderPlaylistSongs = onReorderPlaylistSongs,
+                        onPlayNext = onPlayNext,
+                        onAddToQueue = onAddToQueue,
+                        onSongInfo = onSongInfo,
+                        onShareSong = onShareSong,
+                        onCutRingtone = onCutRingtone,
+                        showQualityBadges = showQualityBadges
                     )
                 }
 
@@ -407,6 +591,8 @@ fun LibraryScreen(
                                     onToggleFavorite = { onToggleFavorite(song) },
                                     onAddToPlaylist = { onAddToPlaylist(song) },
                                     onDeleteSong = { onDeleteSong(song) },
+                                    onPlayNext = onPlayNext,
+                                    onAddToQueue = onAddToQueue,
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
                                     onCutRingtone = onCutRingtone,
@@ -553,6 +739,8 @@ fun LibraryScreen(
                                         onToggleFavorite = { onToggleFavorite(song) },
                                         onAddToPlaylist = { onAddToPlaylist(song) },
                                         onDeleteSong = { onDeleteSong(song) },
+                                        onPlayNext = onPlayNext,
+                                        onAddToQueue = onAddToQueue,
                                         onSongInfo = onSongInfo,
                                         onShareSong = onShareSong,
                                         onCutRingtone = onCutRingtone,
