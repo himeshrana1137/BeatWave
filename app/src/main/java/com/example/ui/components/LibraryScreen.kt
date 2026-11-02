@@ -30,14 +30,23 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.model.AudioQualityFilter
+import com.example.model.SortOption
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,6 +103,11 @@ fun LibraryScreen(
     onSongInfo: ((Song) -> Unit)? = null,
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
+    showQualityBadges: Boolean = true,
+    audioQualityFilter: AudioQualityFilter = AudioQualityFilter.ALL,
+    onAudioQualityFilterSelected: (AudioQualityFilter) -> Unit = {},
+    sortOption: SortOption = SortOption.DATE_ADDED_DESC,
+    onSortOptionSelected: (SortOption) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Intercept back presses when inside a detail view
@@ -232,7 +246,8 @@ fun LibraryScreen(
                                     onDeleteSong = { onDeleteSong(song) },
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
-                                    onCutRingtone = onCutRingtone
+                                    onCutRingtone = onCutRingtone,
+                                    showQualityBadges = showQualityBadges
                                 )
                             }
                         }
@@ -275,7 +290,8 @@ fun LibraryScreen(
                                     onDeleteSong = { onDeleteSong(song) },
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
-                                    onCutRingtone = onCutRingtone
+                                    onCutRingtone = onCutRingtone,
+                                    showQualityBadges = showQualityBadges
                                 )
                             }
                         }
@@ -318,7 +334,8 @@ fun LibraryScreen(
                                     onDeleteSong = { onDeleteSong(song) },
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
-                                    onCutRingtone = onCutRingtone
+                                    onCutRingtone = onCutRingtone,
+                                    showQualityBadges = showQualityBadges
                                 )
                             }
                         }
@@ -392,7 +409,8 @@ fun LibraryScreen(
                                     onDeleteSong = { onDeleteSong(song) },
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
-                                    onCutRingtone = onCutRingtone
+                                    onCutRingtone = onCutRingtone,
+                                    showQualityBadges = showQualityBadges
                                 )
                             }
                         }
@@ -400,31 +418,147 @@ fun LibraryScreen(
                 }
 
                 else -> { // Default: SONGS
-                    if (songs.isEmpty()) {
-                        EmptyLibraryState(
-                            title = "Your library is empty",
-                            message = "Songs added or scanned from device storage will show up right here."
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 120.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Quality filter chips & Sort button row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            items(songs, key = { it.id }) { song ->
-                                val isCurrent = song.id == currentSongId
-                                SongItemCard(
-                                    song = song,
-                                    isCurrent = isCurrent,
-                                    isPlaying = isCurrent && isPlaying,
-                                    onSongClick = { onSongClick(song, songs) },
-                                    onToggleFavorite = { onToggleFavorite(song) },
-                                    onAddToPlaylist = { onAddToPlaylist(song) },
-                                    onDeleteSong = { onDeleteSong(song) },
-                                    onSongInfo = onSongInfo,
-                                    onShareSong = onShareSong,
-                                    onCutRingtone = onCutRingtone
-                                )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AudioQualityFilter.values().forEach { filter ->
+                                    val isSelected = audioQualityFilter == filter
+                                    val label = when (filter) {
+                                        AudioQualityFilter.ALL -> "All Quality"
+                                        AudioQualityFilter.LOSSLESS -> "Lossless 💎"
+                                        AudioQualityFilter.HIGH -> "High (256k+)"
+                                        AudioQualityFilter.STANDARD -> "Standard"
+                                        AudioQualityFilter.LOW -> "Low (<128k)"
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(if (isSelected) PrimaryViolet else SurfaceVariantDark)
+                                            .clickable { onAudioQualityFilterSelected(filter) }
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else TextSecondary
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            // Sort Button
+                            var sortMenuExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { sortMenuExpanded = true },
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(SurfaceDark)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sort,
+                                        contentDescription = "Sort Songs",
+                                        tint = PrimaryViolet,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = sortMenuExpanded,
+                                    onDismissRequest = { sortMenuExpanded = false },
+                                    modifier = Modifier.background(SurfaceHighlightDark)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Date Added (Newest)", color = if (sortOption == SortOption.DATE_ADDED_DESC) PrimaryViolet else TextPrimary) },
+                                        onClick = {
+                                            onSortOptionSelected(SortOption.DATE_ADDED_DESC)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Quality (Highest first 💎)", color = if (sortOption == SortOption.QUALITY_DESC) PrimaryViolet else TextPrimary) },
+                                        onClick = {
+                                            onSortOptionSelected(SortOption.QUALITY_DESC)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Quality (Lowest first)", color = if (sortOption == SortOption.QUALITY_ASC) PrimaryViolet else TextPrimary) },
+                                        onClick = {
+                                            onSortOptionSelected(SortOption.QUALITY_ASC)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Title (A-Z)", color = if (sortOption == SortOption.TITLE_ASC) PrimaryViolet else TextPrimary) },
+                                        onClick = {
+                                            onSortOptionSelected(SortOption.TITLE_ASC)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Artist (A-Z)", color = if (sortOption == SortOption.ARTIST_ASC) PrimaryViolet else TextPrimary) },
+                                        onClick = {
+                                            onSortOptionSelected(SortOption.ARTIST_ASC)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Duration (Longest)", color = if (sortOption == SortOption.DURATION_DESC) PrimaryViolet else TextPrimary) },
+                                        onClick = {
+                                            onSortOptionSelected(SortOption.DURATION_DESC)
+                                            sortMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (songs.isEmpty()) {
+                            EmptyLibraryState(
+                                title = if (audioQualityFilter != AudioQualityFilter.ALL) "No ${audioQualityFilter.name.lowercase()} songs" else "Your library is empty",
+                                message = "Songs matching this filter will show up right here."
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(songs, key = { it.id }) { song ->
+                                    val isCurrent = song.id == currentSongId
+                                    SongItemCard(
+                                        song = song,
+                                        isCurrent = isCurrent,
+                                        isPlaying = isCurrent && isPlaying,
+                                        onSongClick = { onSongClick(song, songs) },
+                                        onToggleFavorite = { onToggleFavorite(song) },
+                                        onAddToPlaylist = { onAddToPlaylist(song) },
+                                        onDeleteSong = { onDeleteSong(song) },
+                                        onSongInfo = onSongInfo,
+                                        onShareSong = onShareSong,
+                                        onCutRingtone = onCutRingtone,
+                                        showQualityBadges = showQualityBadges
+                                    )
+                                }
                             }
                         }
                     }

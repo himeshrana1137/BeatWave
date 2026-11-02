@@ -78,25 +78,20 @@ object NowPlayingCardGenerator {
             val artRect = RectF(artLeft, artTop, artLeft + artSize, artTop + artSize)
 
             var artDrawn = false
-            if (!song.albumArtPath.isNullOrBlank()) {
-                val artFile = File(song.albumArtPath)
-                if (artFile.exists()) {
-                    try {
-                        val decoded = BitmapFactory.decodeFile(artFile.absolutePath)
-                        if (decoded != null) {
-                            val scaled = Bitmap.createScaledBitmap(decoded, artSize.toInt(), artSize.toInt(), true)
-                            val artPath = Path().apply {
-                                addRoundRect(artRect, 48f, 48f, Path.Direction.CW)
-                            }
-                            canvas.save()
-                            canvas.clipPath(artPath)
-                            canvas.drawBitmap(scaled, artLeft, artTop, null)
-                            canvas.restore()
-                            artDrawn = true
-                        }
-                    } catch (_: Exception) {}
+            try {
+                val artBitmap = AlbumArtLoader.loadArt(context, song, AlbumArtLoader.SIZE_FULL)
+                if (artBitmap != null && !artBitmap.isRecycled) {
+                    val scaled = Bitmap.createScaledBitmap(artBitmap, artSize.toInt(), artSize.toInt(), true)
+                    val artPath = Path().apply {
+                        addRoundRect(artRect, 48f, 48f, Path.Direction.CW)
+                    }
+                    canvas.save()
+                    canvas.clipPath(artPath)
+                    canvas.drawBitmap(scaled, artLeft, artTop, null)
+                    canvas.restore()
+                    artDrawn = true
                 }
-            }
+            } catch (_: Exception) {}
 
             if (!artDrawn) {
                 // Procedural Gradient artwork

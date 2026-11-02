@@ -55,6 +55,7 @@ fun MiniPlayer(
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onToggleFavorite: (Song) -> Unit,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val song = snapshot.currentSong ?: return
@@ -106,15 +107,26 @@ fun MiniPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        if (showQualityBadges) {
+                            val quality = remember(song.id) {
+                                com.example.util.MediaQualityManager.getAudioQualitySync(song)
+                            }
+                            AudioQualityBadge(quality = quality, compact = true)
+                        }
+                        Text(
+                            text = song.artist,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 // Favorite button

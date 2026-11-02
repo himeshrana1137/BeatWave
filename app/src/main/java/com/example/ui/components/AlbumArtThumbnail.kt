@@ -25,8 +25,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.model.Song
@@ -43,6 +47,7 @@ import com.example.ui.theme.PrimaryVioletLight
 import com.example.ui.theme.SecondaryAccent
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
+import com.example.util.AlbumArtLoader
 import java.io.File
 import kotlin.math.abs
 
@@ -65,63 +70,25 @@ fun getPlaceholderGradient(songSeed: String?): List<Color> {
 
 /**
  * Computes a dominant color from album art bitmap, or falls back to song-seeded vibrant color.
+ * Uses AlbumArtLoader so color matches the real loaded cover art.
  */
 @Composable
 fun rememberDominantColor(song: Song?): Color {
-    return remember(song?.id, song?.albumArtPath) {
-        if (song?.albumArtPath != null) {
-            try {
-                val file = File(song.albumArtPath)
-                if (file.exists()) {
-                    val options = BitmapFactory.Options().apply {
-                        inSampleSize = 8
-                        inPreferredConfig = Bitmap.Config.RGB_565
-                    }
-                    val bmp = BitmapFactory.decodeFile(file.absolutePath, options)
-                    if (bmp != null) {
-                        var redSum = 0L
-                        var greenSum = 0L
-                        var blueSum = 0L
-                        var count = 0
-                        val stepX = (bmp.width / 8).coerceAtLeast(1)
-                        val stepY = (bmp.height / 8).coerceAtLeast(1)
-                        for (x in 0 until bmp.width step stepX) {
-                            for (y in 0 until bmp.height step stepY) {
-                                val pixel = bmp.getPixel(x, y)
-                                val r = android.graphics.Color.red(pixel)
-                                val g = android.graphics.Color.green(pixel)
-                                val b = android.graphics.Color.blue(pixel)
-                                // Skip too dark or pure white pixels
-                                val brightness = (r + g + b) / 3
-                                if (brightness in 35..220) {
-                                    redSum += r
-                                    greenSum += g
-                                    blueSum += b
-                                    count++
-                                }
-                            }
-                        }
-                        if (count > 0) {
-                            val avgR = (redSum / count).toInt()
-                            val avgG = (greenSum / count).toInt()
-                            val avgB = (blueSum / count).toInt()
-                            Color(avgR, avgG, avgB)
-                        } else {
-                            PrimaryViolet
-                        }
-                    } else {
-                        getPlaceholderGradient(song.title).first()
-                    }
-                } else {
-                    getPlaceholderGradient(song.title).first()
-                }
-            } catch (_: Exception) {
-                getPlaceholderGradient(song?.title).first()
-            }
+    val context = LocalContext.current
+    var dominantColor by remember(song?.id) {
+        mutableStateOf(AlbumArtLoader.getCachedDominantColor(song))
+    }
+
+    LaunchedEffect(song?.id) {
+        if (song != null) {
+            val color = AlbumArtLoader.loadDominantColor(context, song)
+            dominantColor = color
         } else {
-            getPlaceholderGradient(song?.title).first()
+            dominantColor = PrimaryViolet
         }
     }
+
+    return dominantColor
 }
 
 @Composable
@@ -132,16 +99,22 @@ fun AlbumArtThumbnail(
     shapeRadius: Dp = 10.dp,
     isRound: Boolean = false
 ) {
-    val bitmap = remember(song?.albumArtPath) {
-        song?.albumArtPath?.let { path ->
-            try {
-                val file = File(path)
-                if (file.exists()) {
-                    BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
-                } else null
-            } catch (_: Exception) {
-                null
-            }
+    val context = LocalContext.current
+    val targetPx = if (size > 140.dp) AlbumArtLoader.SIZE_FULL else AlbumArtLoader.SIZE_THUMBNAIL
+
+    // Synchronously check memory cache first so there's zero flicker for cached images
+    var bitmap by remember(song?.id, targetPx) {
+        mutableStateOf(AlbumArtLoader.getCachedArt(song?.id, targetPx))
+    }
+
+    LaunchedEffect(song?.id, targetPx) {
+        if (song == null) {
+            bitmap = null
+            return@LaunchedEffect
+        }
+        if (bitmap == null) {
+            val loaded = AlbumArtLoader.loadArt(context, song, targetPx)
+            bitmap = loaded
         }
     }
 
@@ -156,9 +129,10 @@ fun AlbumArtThumbnail(
             .border(1.dp, Color(0x338B5CF6), shape),
         contentAlignment = Alignment.Center
     ) {
-        if (bitmap != null) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null && !currentBitmap.isRecycled) {
             Image(
-                bitmap = bitmap,
+                bitmap = currentBitmap.asImageBitmap(),
                 contentDescription = "${song?.title} Album Artwork",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop

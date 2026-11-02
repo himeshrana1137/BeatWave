@@ -86,6 +86,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenWrapped: () -> Unit = {},
     onOpenAchievements: () -> Unit = {},
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // Dynamic greeting based on time of day
@@ -351,7 +352,8 @@ fun HomeScreen(
                         items(continueWatching, key = { it.id }) { video ->
                             ContinueWatchingCard(
                                 video = video,
-                                onClick = { onVideoClick(video) }
+                                onClick = { onVideoClick(video) },
+                                showQualityBadges = showQualityBadges
                             )
                         }
                     }
@@ -401,7 +403,8 @@ fun HomeScreen(
                     songs = recentlyAdded,
                     currentSongId = currentSongId,
                     isPlaying = isPlaying,
-                    onSongClick = { onSongClick(it, recentlyAdded) }
+                    onSongClick = { onSongClick(it, recentlyAdded) },
+                    showQualityBadges = showQualityBadges
                 )
             }
         }
@@ -414,7 +417,8 @@ fun HomeScreen(
                     songs = mostPlayed,
                     currentSongId = currentSongId,
                     isPlaying = isPlaying,
-                    onSongClick = { onSongClick(it, mostPlayed) }
+                    onSongClick = { onSongClick(it, mostPlayed) },
+                    showQualityBadges = showQualityBadges
                 )
             }
         }
@@ -427,7 +431,8 @@ fun HomeScreen(
                     songs = favorites,
                     currentSongId = currentSongId,
                     isPlaying = isPlaying,
-                    onSongClick = { onSongClick(it, favorites) }
+                    onSongClick = { onSongClick(it, favorites) },
+                    showQualityBadges = showQualityBadges
                 )
             }
         }
@@ -593,6 +598,7 @@ fun HomeCarouselSection(
     currentSongId: String?,
     isPlaying: Boolean,
     onSongClick: (Song) -> Unit,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -615,7 +621,8 @@ fun HomeCarouselSection(
                     song = song,
                     isCurrent = isCurrent,
                     isPlaying = isCurrent && isPlaying,
-                    onClick = { onSongClick(song) }
+                    onClick = { onSongClick(song) },
+                    showQualityBadges = showQualityBadges
                 )
             }
         }
@@ -631,6 +638,7 @@ fun HomeSongCard(
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -693,15 +701,26 @@ fun HomeSongCard(
             overflow = TextOverflow.Ellipsis
         )
 
-        Text(
-            text = song.artist,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 12.sp,
-                color = TextSecondary
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (showQualityBadges) {
+                val quality = remember(song.id) {
+                    com.example.util.MediaQualityManager.getAudioQualitySync(song)
+                }
+                AudioQualityBadge(quality = quality, compact = true)
+            }
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -760,6 +779,7 @@ fun HomeAlbumCard(
 fun ContinueWatchingCard(
     video: VideoItem,
     onClick: () -> Unit,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val bitmap = remember(video.thumbnailPath) {
@@ -810,6 +830,20 @@ fun ContinueWatchingCard(
                         tint = PrimaryViolet,
                         modifier = Modifier.size(32.dp)
                     )
+                }
+            }
+
+            // Quality badges (Resolution, HDR, 60fps)
+            if (showQualityBadges) {
+                val quality = remember(video.id) {
+                    com.example.util.MediaQualityManager.getVideoQualitySync(video)
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                ) {
+                    VideoQualityBadges(quality = quality)
                 }
             }
 

@@ -133,6 +133,8 @@ fun MusicPlayerScreen(
     val showStreamUrlDialog by viewModel.showStreamUrlDialog.collectAsStateWithLifecycle()
     val showWrappedDialog by viewModel.showWrappedDialog.collectAsStateWithLifecycle()
     val showAchievementsDialog by viewModel.showAchievementsDialog.collectAsStateWithLifecycle()
+    val audioQualityFilter by viewModel.audioQualityFilter.collectAsStateWithLifecycle()
+    val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
 
     // Automatic storage permission request on first launch
     val permissionsToRequest = remember {
@@ -225,6 +227,7 @@ fun MusicPlayerScreen(
                     if (playbackSnapshot.currentSong != null) {
                         MiniPlayer(
                             snapshot = playbackSnapshot,
+                            showQualityBadges = appSettings.showQualityBadges,
                             onExpand = { viewModel.setFullScreenPlayerOpen(true) },
                             onTogglePlayPause = { viewModel.playbackManager.togglePlayPause() },
                             onSkipNext = { viewModel.playbackManager.skipNext() },
@@ -344,6 +347,7 @@ fun MusicPlayerScreen(
                                 videos = videos,
                                 currentSongId = playbackSnapshot.currentSong?.id,
                                 isPlaying = playbackSnapshot.isPlaying,
+                                showQualityBadges = appSettings.showQualityBadges,
                                 onSongClick = { song, list ->
                                     viewModel.playSongFromList(song, list)
                                 },
@@ -406,6 +410,11 @@ fun MusicPlayerScreen(
                                 selectedFolder = selectedFolder,
                                 currentSongId = playbackSnapshot.currentSong?.id,
                                 isPlaying = playbackSnapshot.isPlaying,
+                                showQualityBadges = appSettings.showQualityBadges,
+                                audioQualityFilter = audioQualityFilter,
+                                onAudioQualityFilterSelected = { viewModel.setAudioQualityFilter(it) },
+                                sortOption = sortOption,
+                                onSortOptionSelected = { viewModel.setSortOption(it) },
                                 onSelectPlaylist = { viewModel.selectPlaylist(it) },
                                 onSelectAlbum = { viewModel.selectAlbum(it) },
                                 onSelectArtist = { viewModel.selectArtist(it) },
@@ -429,6 +438,7 @@ fun MusicPlayerScreen(
                         MainBottomTab.VIDEOS -> {
                             VideoListView(
                                 videos = videos,
+                                showQualityBadges = appSettings.showQualityBadges,
                                 onVideoClick = { viewModel.selectVideo(it) },
                                 onAddVideosClick = {
                                     videoPickerLauncher.launch(
@@ -455,6 +465,7 @@ fun MusicPlayerScreen(
         ) {
             FullScreenPlayer(
                 snapshot = playbackSnapshot,
+                showQualityBadges = appSettings.showQualityBadges,
                 onCollapse = { viewModel.setFullScreenPlayerOpen(false) },
                 onTogglePlayPause = { viewModel.playbackManager.togglePlayPause() },
                 onSkipNext = { viewModel.playbackManager.skipNext() },
@@ -598,6 +609,8 @@ fun MusicPlayerScreen(
                         onToggleAutoFetchLyrics = { viewModel.setAutoFetchLyricsEnabled(it) },
                         onToggleBackgroundVideoAudioOnly = { viewModel.setBackgroundVideoAudioOnly(it) },
                         onToggleReduceAnimations = { viewModel.setReduceAnimations(it) },
+                        onToggleFetchOnlineCoverArt = { viewModel.setFetchOnlineCoverArt(it) },
+                        onToggleShowQualityBadges = { viewModel.setShowQualityBadges(it) },
                         onOpenWrapped = { viewModel.openWrappedDialog() },
                         onOpenAchievements = { viewModel.openAchievementsDialog() }
                     )

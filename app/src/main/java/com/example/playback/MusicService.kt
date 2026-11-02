@@ -23,6 +23,7 @@ import androidx.core.app.ServiceCompat
 import com.example.MainActivity
 import com.example.R
 import com.example.model.PlaybackSnapshot
+import com.example.util.AlbumArtLoader
 import java.io.File
 
 class MusicService : Service() {
@@ -208,15 +209,13 @@ class MusicService : Service() {
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, song.album)
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, snapshot.durationMs)
 
-            song.albumArtPath?.let { path ->
-                try {
-                    val file = File(path)
-                    if (file.exists()) {
-                        val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-                        metaBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
-                    }
-                } catch (_: Exception) {}
-            }
+            try {
+                val artBitmap = AlbumArtLoader.loadArtSync(this, song, AlbumArtLoader.SIZE_FULL)
+                if (artBitmap != null && !artBitmap.isRecycled) {
+                    metaBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, artBitmap)
+                    metaBuilder.putBitmap(MediaMetadata.METADATA_KEY_ART, artBitmap)
+                }
+            } catch (_: Exception) {}
             mediaSession?.setMetadata(metaBuilder.build())
         }
 
@@ -286,12 +285,11 @@ class MusicService : Service() {
             .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
 
         // Large icon if album art exists
-        song?.albumArtPath?.let { path ->
+        if (song != null) {
             try {
-                val file = File(path)
-                if (file.exists()) {
-                    val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-                    builder.setLargeIcon(bitmap)
+                val artBitmap = AlbumArtLoader.loadArtSync(this, song, AlbumArtLoader.SIZE_THUMBNAIL)
+                if (artBitmap != null && !artBitmap.isRecycled) {
+                    builder.setLargeIcon(artBitmap)
                 }
             } catch (_: Exception) {}
         }

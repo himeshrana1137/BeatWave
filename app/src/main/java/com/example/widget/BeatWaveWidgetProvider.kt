@@ -14,6 +14,7 @@ import com.example.MainActivity
 import com.example.R
 import com.example.model.Song
 import com.example.playback.MusicService
+import com.example.util.AlbumArtLoader
 import java.io.File
 
 class BeatWaveWidgetProvider : AppWidgetProvider() {
@@ -110,31 +111,12 @@ class BeatWaveWidgetProvider : AppWidgetProvider() {
             }
             views.setImageViewResource(R.id.widget_play_pause, playPauseRes)
 
-            // Load Album Art thumbnail with memory-efficient sample size (32-bit low-RAM safe)
+            // Load Album Art thumbnail with AlbumArtLoader (memory-efficient sample size, 32-bit low-RAM safe)
             var artLoaded = false
-            song?.albumArtPath?.let { artPath ->
+            if (song != null) {
                 try {
-                    val bitmap: Bitmap? = if (artPath.startsWith("content://")) {
-                        val uri = Uri.parse(artPath)
-                        context.contentResolver.openInputStream(uri)?.use { stream ->
-                            val opts = BitmapFactory.Options().apply {
-                                inSampleSize = 2
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                            }
-                            BitmapFactory.decodeStream(stream, null, opts)
-                        }
-                    } else {
-                        val file = File(artPath)
-                        if (file.exists()) {
-                            val opts = BitmapFactory.Options().apply {
-                                inSampleSize = 2
-                                inPreferredConfig = Bitmap.Config.RGB_565
-                            }
-                            BitmapFactory.decodeFile(file.absolutePath, opts)
-                        } else null
-                    }
-
-                    if (bitmap != null) {
+                    val bitmap = AlbumArtLoader.loadArtSync(context, song, AlbumArtLoader.SIZE_THUMBNAIL)
+                    if (bitmap != null && !bitmap.isRecycled) {
                         views.setImageViewBitmap(R.id.widget_album_art, bitmap)
                         artLoaded = true
                     }

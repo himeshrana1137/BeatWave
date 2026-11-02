@@ -11,7 +11,9 @@ data class AppSettings(
     val fadeInOutEnabled: Boolean = true,
     val autoFetchLyrics: Boolean = true,
     val backgroundVideoAudioOnly: Boolean = false,
-    val reduceAnimations: Boolean = false
+    val reduceAnimations: Boolean = false,
+    val fetchOnlineCoverArt: Boolean = false,
+    val showQualityBadges: Boolean = true
 )
 
 data class DuplicateSongGroup(

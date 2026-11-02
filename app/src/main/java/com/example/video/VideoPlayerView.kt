@@ -57,12 +57,16 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PictureInPicture
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.ClosedCaption
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -73,6 +77,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import com.example.model.VideoQuality
+import com.example.ui.components.VideoInfoPanelDialog
+import com.example.util.MediaQualityManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -155,6 +162,19 @@ fun VideoPlayerView(
     var gestureHudText by remember { mutableStateOf<String?>(null) }
     var doubleTapSeekFeedback by remember { mutableStateOf<String?>(null) }
     var showResumeToast by remember { mutableStateOf(false) }
+
+    // Video Technical Info & Codec Support
+    var showInfoPanelDialog by remember { mutableStateOf(false) }
+    var videoQuality by remember(video.id) { mutableStateOf(MediaQualityManager.getVideoQualitySync(video)) }
+    var playbackErrorMsg by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(video.id) {
+        val q = MediaQualityManager.getVideoQuality(context, video)
+        videoQuality = q
+        if (!q.isSupported) {
+            playbackErrorMsg = "Unsupported video codec (${q.videoCodec ?: "Unknown"}). This device does not have a decoder for this video format."
+        }
+    }
 
     // Subtitles
     var subtitles by remember { mutableStateOf<List<SubtitleLine>>(emptyList()) }
@@ -342,6 +362,10 @@ fun VideoPlayerView(
                                         setOnCompletionListener {
                                             isPlaying = false
                                             isControlsVisible = true
+                                        }
+                                        setOnErrorListener { _, what, extra ->
+                                            playbackErrorMsg = "Playback error ($what, $extra): Codec or media format cannot be decoded on this device."
+                                            true
                                         }
                                     }
                                     mediaPlayer = player
@@ -843,6 +867,21 @@ fun VideoPlayerView(
                                 tint = Color.White
                             )
                         }
+
+                        // Video Info Panel Toggle Button
+                        IconButton(
+                            onClick = { showInfoPanelDialog = true },
+                            modifier = Modifier
+                                .testTag("video_info_panel_button")
+                                .minimumInteractiveComponentSize()
+                                .size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Video Technical Info",
+                                tint = SecondaryCyan
+                            )
+                        }
                     }
                 }
 
@@ -974,6 +1013,59 @@ fun VideoPlayerView(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Technical Video Info Dialog Panel
+        if (showInfoPanelDialog) {
+            VideoInfoPanelDialog(
+                video = video,
+                quality = videoQuality,
+                onDismiss = { showInfoPanelDialog = false }
+            )
+        }
+
+        // Unsupported Codec / Media Error Fullscreen Overlay
+        if (playbackErrorMsg != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.94f))
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Playback Error",
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Codec Not Supported",
+                        style = MaterialTheme.typography.titleLarge.copy(color = Color.White, fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = playbackErrorMsg ?: "This device does not support decoding this video format.",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary, textAlign = TextAlign.Center)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            mediaPlayer?.let { onSaveProgress(video.id, it.currentPosition.toLong()) }
+                            onClose()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryNeon),
+                        modifier = Modifier.testTag("unsupported_codec_close_button")
+                    ) {
+                        Text("Go Back", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

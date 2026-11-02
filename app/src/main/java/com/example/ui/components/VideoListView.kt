@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -31,9 +33,12 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -42,7 +47,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +66,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.VideoItem
+import com.example.model.VideoResolutionFilter
+import com.example.model.VideoResolutionTier
+import com.example.model.VideoSortOption
+import com.example.util.MediaQualityManager
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryAccent
 import com.example.ui.theme.SurfaceDark
@@ -77,8 +90,44 @@ fun VideoListView(
     onShareVideo: ((VideoItem) -> Unit)? = null,
     onOpenStreamUrl: () -> Unit = {},
     onOpenVault: () -> Unit = {},
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var resolutionFilter by remember { mutableStateOf(VideoResolutionFilter.ALL) }
+    var sortOption by remember { mutableStateOf(VideoSortOption.DATE_DESC) }
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    val processedVideos = remember(videos, resolutionFilter, sortOption) {
+        var list = videos
+        if (resolutionFilter != VideoResolutionFilter.ALL) {
+            list = list.filter { video ->
+                val q = MediaQualityManager.getVideoQualitySync(video)
+                when (resolutionFilter) {
+                    VideoResolutionFilter.UHD_4K_8K -> q.resolutionTier == VideoResolutionTier.UHD_8K || q.resolutionTier == VideoResolutionTier.UHD_4K
+                    VideoResolutionFilter.FHD_1080P -> q.resolutionTier == VideoResolutionTier.FHD || q.resolutionTier == VideoResolutionTier.QHD_2K
+                    VideoResolutionFilter.HD_720P -> q.resolutionTier == VideoResolutionTier.HD
+                    VideoResolutionFilter.SD -> q.resolutionTier == VideoResolutionTier.SD
+                    VideoResolutionFilter.ALL -> true
+                }
+            }
+        }
+        when (sortOption) {
+            VideoSortOption.DATE_DESC -> list.sortedByDescending { it.dateAdded }
+            VideoSortOption.RESOLUTION_DESC -> list.sortedWith(
+                compareByDescending<VideoItem> { MediaQualityManager.getVideoQualitySync(it).resolutionTier.rank }
+                    .thenByDescending { MediaQualityManager.getVideoQualitySync(it).height }
+                    .thenByDescending { it.dateAdded }
+            )
+            VideoSortOption.RESOLUTION_ASC -> list.sortedWith(
+                compareBy<VideoItem> { MediaQualityManager.getVideoQualitySync(it).resolutionTier.rank }
+                    .thenBy { MediaQualityManager.getVideoQualitySync(it).height }
+                    .thenByDescending { it.dateAdded }
+            )
+            VideoSortOption.DURATION_DESC -> list.sortedByDescending { it.durationMs }
+            VideoSortOption.TITLE_ASC -> list.sortedBy { it.title.lowercase() }
+        }
+    }
+
     Column(
         modifier = modifier
             .testTag("video_list_view")
@@ -187,7 +236,112 @@ fun VideoListView(
             }
         }
 
-        if (videos.isEmpty()) {
+        // Resolution Filter & Sort Options Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                VideoResolutionFilter.values().forEach { filter ->
+                    val isSelected = resolutionFilter == filter
+                    val label = when (filter) {
+                        VideoResolutionFilter.ALL -> "All Resolutions"
+                        VideoResolutionFilter.UHD_4K_8K -> "4K / 8K UHD"
+                        VideoResolutionFilter.FHD_1080P -> "1080p FHD"
+                        VideoResolutionFilter.HD_720P -> "720p HD"
+                        VideoResolutionFilter.SD -> "SD"
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isSelected) PrimaryViolet else SurfaceVariantDark)
+                            .clickable { resolutionFilter = filter }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else TextSecondary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Sort button
+            Box {
+                IconButton(
+                    onClick = { showSortMenu = true },
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceDark)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sort,
+                        contentDescription = "Sort Videos",
+                        tint = PrimaryViolet,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false },
+                    modifier = Modifier.background(SurfaceHighlightDark)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Date Added (Newest)", color = if (sortOption == VideoSortOption.DATE_DESC) PrimaryViolet else TextPrimary) },
+                        onClick = {
+                            sortOption = VideoSortOption.DATE_DESC
+                            showSortMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Resolution (Highest first)", color = if (sortOption == VideoSortOption.RESOLUTION_DESC) PrimaryViolet else TextPrimary) },
+                        onClick = {
+                            sortOption = VideoSortOption.RESOLUTION_DESC
+                            showSortMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Resolution (Lowest first)", color = if (sortOption == VideoSortOption.RESOLUTION_ASC) PrimaryViolet else TextPrimary) },
+                        onClick = {
+                            sortOption = VideoSortOption.RESOLUTION_ASC
+                            showSortMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Duration (Longest)", color = if (sortOption == VideoSortOption.DURATION_DESC) PrimaryViolet else TextPrimary) },
+                        onClick = {
+                            sortOption = VideoSortOption.DURATION_DESC
+                            showSortMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Title (A-Z)", color = if (sortOption == VideoSortOption.TITLE_ASC) PrimaryViolet else TextPrimary) },
+                        onClick = {
+                            sortOption = VideoSortOption.TITLE_ASC
+                            showSortMenu = false
+                        }
+                    )
+                }
+            }
+        }
+
+        if (processedVideos.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -216,7 +370,7 @@ fun VideoListView(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "No videos yet",
+                        text = if (resolutionFilter != VideoResolutionFilter.ALL) "No ${resolutionFilter.name} videos" else "No videos yet",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -256,7 +410,7 @@ fun VideoListView(
                 }
             }
         } else {
-            // 2-Column Grid of Video Thumbnails with Duration Badges
+            // 2-Column Grid of Video Thumbnails with Duration & Quality Badges
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
@@ -264,12 +418,13 @@ fun VideoListView(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(videos, key = { it.id }) { video ->
+                items(processedVideos, key = { it.id }) { video ->
                     VideoGridCard(
                         video = video,
                         onClick = { onVideoClick(video) },
                         onDeleteClick = { onDeleteVideo(video.id) },
-                        onShareClick = onShareVideo?.let { { it(video) } }
+                        onShareClick = onShareVideo?.let { { it(video) } },
+                        showQualityBadges = showQualityBadges
                     )
                 }
             }
@@ -286,6 +441,7 @@ fun VideoGridCard(
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onShareClick: (() -> Unit)? = null,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val bitmap = remember(video.thumbnailPath) {
@@ -337,6 +493,24 @@ fun VideoGridCard(
                     tint = PrimaryViolet.copy(alpha = 0.6f),
                     modifier = Modifier.size(36.dp)
                 )
+            }
+
+            // Resolution and HDR/60fps badges in top-start corner
+            if (showQualityBadges) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                var quality by remember(video.id) {
+                    mutableStateOf(MediaQualityManager.getVideoQualitySync(video))
+                }
+                LaunchedEffect(video.id) {
+                    quality = MediaQualityManager.getVideoQuality(context, video)
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                ) {
+                    VideoQualityBadges(quality = quality)
+                }
             }
 
             // Play overlay circle

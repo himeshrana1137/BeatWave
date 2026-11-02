@@ -59,6 +59,8 @@ class MusicRepository(private val context: Context) {
         private const val KEY_AUTO_LYRICS = "key_auto_lyrics"
         private const val KEY_BG_VIDEO_AUDIO = "key_bg_video_audio"
         private const val KEY_REDUCE_ANIM = "key_reduce_anim"
+        private const val KEY_FETCH_ONLINE_COVER = "key_fetch_online_cover"
+        private const val KEY_SHOW_QUALITY_BADGES = "key_show_quality_badges"
     }
 
     fun isVisualizerEnabled(): Boolean {
@@ -82,8 +84,19 @@ class MusicRepository(private val context: Context) {
             fadeInOutEnabled = prefs.getBoolean(KEY_FADE_IN_OUT, true),
             autoFetchLyrics = prefs.getBoolean(KEY_AUTO_LYRICS, true),
             backgroundVideoAudioOnly = prefs.getBoolean(KEY_BG_VIDEO_AUDIO, false),
-            reduceAnimations = prefs.getBoolean(KEY_REDUCE_ANIM, false)
+            reduceAnimations = prefs.getBoolean(KEY_REDUCE_ANIM, false),
+            fetchOnlineCoverArt = prefs.getBoolean(KEY_FETCH_ONLINE_COVER, false),
+            showQualityBadges = prefs.getBoolean(KEY_SHOW_QUALITY_BADGES, true)
         )
+    }
+
+    fun setShowQualityBadges(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_QUALITY_BADGES, enabled).apply()
+    }
+
+    fun setFetchOnlineCoverArt(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FETCH_ONLINE_COVER, enabled).apply()
+        com.example.util.AlbumArtLoader.setOnlineCoverFetchEnabled(enabled)
     }
 
     fun setVolumeNormalizationSetting(enabled: Boolean) {
@@ -716,7 +729,7 @@ class MusicRepository(private val context: Context) {
                     val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                     durationMs = durStr?.toLongOrNull() ?: 0L
 
-                    val artBytes = retriever.embeddedPicture
+                    val artBytes = com.example.util.AlbumArtLoader.extractEmbeddedPictureBytes(context, uri)
                     if (artBytes != null && artBytes.isNotEmpty()) {
                         val artDir = File(context.filesDir, "album_art")
                         if (!artDir.exists()) artDir.mkdirs()

@@ -66,6 +66,7 @@ fun SongItemCard(
     onSongInfo: ((Song) -> Unit)? = null,
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -128,6 +129,12 @@ fun SongItemCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                if (showQualityBadges) {
+                    val quality = remember(song.id) {
+                        com.example.util.MediaQualityManager.getAudioQualitySync(song)
+                    }
+                    AudioQualityBadge(quality = quality, compact = true)
+                }
                 Text(
                     text = song.artist,
                     style = MaterialTheme.typography.bodySmall.copy(

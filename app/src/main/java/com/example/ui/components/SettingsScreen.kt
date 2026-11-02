@@ -119,6 +119,8 @@ fun SettingsScreen(
     onToggleAutoFetchLyrics: ((Boolean) -> Unit)? = null,
     onToggleBackgroundVideoAudioOnly: ((Boolean) -> Unit)? = null,
     onToggleReduceAnimations: ((Boolean) -> Unit)? = null,
+    onToggleFetchOnlineCoverArt: ((Boolean) -> Unit)? = null,
+    onToggleShowQualityBadges: ((Boolean) -> Unit)? = null,
     onOpenWrapped: (() -> Unit)? = null,
     onOpenAchievements: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -374,6 +376,17 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Optional Feature: Online Album Art Fetcher
+                SettingToggleItem(
+                    title = "Online Album Art Fetcher",
+                    subtitle = "Search and download missing cover art from iTunes / Deezer over internet (cached in app storage, never modifies audio files)",
+                    checked = appSettings.fetchOnlineCoverArt,
+                    onCheckedChange = { onToggleFetchOnlineCoverArt?.invoke(it) },
+                    testTag = "setting_online_cover_switch"
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Feature (8): Background video audio-only
                 SettingToggleItem(
                     title = "Audio-Only Background Video",
@@ -428,6 +441,17 @@ fun SettingsScreen(
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
+
+                // Quality Badges Toggle (default on)
+                SettingToggleItem(
+                    title = "Show Quality Badges",
+                    subtitle = "Show audio format/bitrate (FLAC, Hi-Res, 320k) and video resolution badges (1080p, 4K, 60fps)",
+                    checked = appSettings.showQualityBadges,
+                    onCheckedChange = { onToggleShowQualityBadges?.invoke(it) },
+                    testTag = "setting_quality_badges_switch"
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Feature 5: Hide audio files shorter than 60s
                 SettingToggleItem(

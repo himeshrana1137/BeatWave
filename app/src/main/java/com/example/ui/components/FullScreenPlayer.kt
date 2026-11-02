@@ -146,6 +146,7 @@ fun FullScreenPlayer(
     onCutRingtone: ((Song) -> Unit)? = null,
     onSetPlaybackSpeedAndPitch: ((speed: Float, pitch: Float) -> Unit)? = null,
     onTagMood: ((Song) -> Unit)? = null,
+    showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     BackHandler {
@@ -693,7 +694,20 @@ fun FullScreenPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            if (showQualityBadges) {
+                var audioQuality by remember(song.id) {
+                    mutableStateOf(com.example.util.MediaQualityManager.getAudioQualitySync(song))
+                }
+                LaunchedEffect(song.id) {
+                    audioQuality = com.example.util.MediaQualityManager.getAudioQuality(context, song)
+                }
+                DetailedAudioQualityStrip(
+                    quality = audioQuality,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Seek Bar Section
             Column(modifier = Modifier.fillMaxWidth()) {

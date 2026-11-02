@@ -21,13 +21,17 @@ import com.example.model.PlaybackSnapshot
 import com.example.model.Playlist
 import com.example.model.Song
 import com.example.model.SongDetailedInfo
+import com.example.model.AudioQualityFilter
+import com.example.model.AudioQualityTier
 import com.example.model.SortOption
 import com.example.model.VideoItem
-import java.io.File
 import com.example.playback.EqualizerState
 import com.example.playback.MusicPlaybackManager
 import com.example.playback.MusicService
 import com.example.ui.theme.AppThemeMode
+import com.example.util.AlbumArtLoader
+import com.example.util.MediaQualityManager
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +72,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sortOption = MutableStateFlow(SortOption.DATE_ADDED_DESC)
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
+
+    private val _audioQualityFilter = MutableStateFlow(AudioQualityFilter.ALL)
+    val audioQualityFilter: StateFlow<AudioQualityFilter> = _audioQualityFilter.asStateFlow()
+
+    fun setAudioQualityFilter(filter: AudioQualityFilter) {
+        _audioQualityFilter.value = filter
+    }
+
+    fun setShowQualityBadges(enabled: Boolean) {
+        repository.setShowQualityBadges(enabled)
+        _appSettings.value = repository.getAppSettings()
+    }
 
     private val _selectedPlaylist = MutableStateFlow<Playlist?>(null)
     val selectedPlaylist: StateFlow<Playlist?> = _selectedPlaylist.asStateFlow()
@@ -373,7 +389,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _selectedPlaylist,
         _selectedAlbum,
         _selectedArtist,
-        _selectedFolder
+        _selectedFolder,
+        _audioQualityFilter
     ) { args ->
         val songsList = args[0] as List<Song>
         val query = args[1] as String
@@ -383,6 +400,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val album = args[5] as AlbumItem?
         val artist = args[6] as ArtistItem?
         val folder = args[7] as FolderItem?
+        val qualityFilter = args[8] as AudioQualityFilter
 
         var list = when {
             playlist != null -> {
@@ -420,6 +438,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        if (qualityFilter != AudioQualityFilter.ALL) {
+            list = list.filter { song ->
+                val q = MediaQualityManager.getAudioQualitySync(song)
+                when (qualityFilter) {
+                    AudioQualityFilter.LOSSLESS -> q.tier == AudioQualityTier.LOSSLESS
+                    AudioQualityFilter.HIGH -> q.tier == AudioQualityTier.HIGH
+                    AudioQualityFilter.STANDARD -> q.tier == AudioQualityTier.STANDARD
+                    AudioQualityFilter.LOW -> q.tier == AudioQualityTier.LOW
+                    AudioQualityFilter.ALL -> true
+                }
+            }
+        }
+
         if (tab != NavigationTab.RECENTLY_PLAYED && tab != NavigationTab.MOST_PLAYED && album == null && artist == null) {
             when (sort) {
                 SortOption.TITLE_ASC -> list.sortedBy { it.title.lowercase() }
@@ -428,6 +459,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 SortOption.DATE_ADDED_DESC -> list.sortedByDescending { it.dateAdded }
                 SortOption.MOST_PLAYED -> list.sortedByDescending { it.playCount }
                 SortOption.RECENTLY_PLAYED -> list.sortedByDescending { it.lastPlayedTime }
+                SortOption.QUALITY_DESC -> list.sortedWith(
+                    compareByDescending<Song> { MediaQualityManager.getAudioQualitySync(it).tier.rank }
+                        .thenByDescending { MediaQualityManager.getAudioQualitySync(it).bitrateKbps }
+                        .thenBy { it.title.lowercase() }
+                )
+                SortOption.QUALITY_ASC -> list.sortedWith(
+                    compareBy<Song> { MediaQualityManager.getAudioQualitySync(it).tier.rank }
+                        .thenBy { MediaQualityManager.getAudioQualitySync(it).bitrateKbps }
+                        .thenBy { it.title.lowercase() }
+                )
             }
         } else {
             list
@@ -467,6 +508,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun scanDeviceMedia() {
         viewModelScope.launch {
             try {
+                AlbumArtLoader.clearNoArtCache()
                 val (updatedSongs, updatedVideos) = repository.syncDeviceMedia()
                 _songs.value = updatedSongs
                 _videos.value = updatedVideos
@@ -819,6 +861,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setReduceAnimations(enabled: Boolean) {
         repository.setReduceAnimations(enabled)
+        _appSettings.value = repository.getAppSettings()
+    }
+
+    fun setFetchOnlineCoverArt(enabled: Boolean) {
+        repository.setFetchOnlineCoverArt(enabled)
         _appSettings.value = repository.getAppSettings()
     }
 

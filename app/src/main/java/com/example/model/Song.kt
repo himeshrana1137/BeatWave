@@ -103,7 +103,9 @@ enum class SortOption {
     DURATION_DESC,
     DATE_ADDED_DESC,
     MOST_PLAYED,
-    RECENTLY_PLAYED
+    RECENTLY_PLAYED,
+    QUALITY_DESC,
+    QUALITY_ASC
 }
 
 data class AlbumItem(
