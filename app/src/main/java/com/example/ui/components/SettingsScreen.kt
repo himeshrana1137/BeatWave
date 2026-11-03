@@ -27,9 +27,12 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FilterAlt
@@ -40,11 +43,14 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -59,6 +65,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppSettings
 import com.example.model.ListeningStats
+import com.example.model.RestoreSummary
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryNeon
@@ -89,7 +97,11 @@ import com.example.ui.theme.SurfaceHighlightDark
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.util.CrashReport
+import com.example.util.CrashReportManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -114,7 +126,7 @@ fun SettingsScreen(
     videoCount: Int,
     playlistCount: Int,
     onExportBackup: suspend () -> String,
-    onImportBackup: (String) -> Unit,
+    onImportBackup: suspend (String) -> RestoreSummary,
     onToggleFadeInOut: ((Boolean) -> Unit)? = null,
     onToggleAutoFetchLyrics: ((Boolean) -> Unit)? = null,
     onToggleBackgroundVideoAudioOnly: ((Boolean) -> Unit)? = null,
@@ -128,21 +140,33 @@ fun SettingsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var backupJsonToExport by remember { mutableStateOf<String?>(null) }
+    var pendingRestoreJson by remember { mutableStateOf<String?>(null) }
+    var showConfirmRestoreDialog by remember { mutableStateOf(false) }
+    var restoreSummaryToShow by remember { mutableStateOf<RestoreSummary?>(null) }
+    var showCrashReportsDialog by remember { mutableStateOf(false) }
+    var crashReportsList by remember { mutableStateOf<List<CrashReport>>(emptyList()) }
 
     // Export file launcher
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
-        if (uri != null && backupJsonToExport != null) {
-            try {
-                context.contentResolver.openOutputStream(uri)?.use { os ->
-                    OutputStreamWriter(os).use { writer ->
-                        writer.write(backupJsonToExport)
+        val json = backupJsonToExport
+        if (uri != null && json != null) {
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                        OutputStreamWriter(os).use { writer ->
+                            writer.write(json)
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Backup exported successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
-                Toast.makeText(context, "Backup exported successfully!", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -152,14 +176,22 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            try {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val content = BufferedReader(InputStreamReader(stream)).readText()
-                    onImportBackup(content)
-                    Toast.makeText(context, "Backup restored successfully!", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BufferedReader(InputStreamReader(stream)).readText()
+                    }
+                    if (!content.isNullOrBlank()) {
+                        withContext(Dispatchers.Main) {
+                            pendingRestoreJson = content
+                            showConfirmRestoreDialog = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Restore failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
-            } catch (e: Exception) {
-                Toast.makeText(context, "Restore failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -1025,9 +1057,18 @@ fun SettingsScreen(
                 ) {
                     Button(
                         onClick = {
-                            coroutineScope.launch {
-                                backupJsonToExport = onExportBackup()
-                                exportLauncher.launch("beatwave_backup.json")
+                            coroutineScope.launch(Dispatchers.IO) {
+                                try {
+                                    val json = onExportBackup()
+                                    withContext(Dispatchers.Main) {
+                                        backupJsonToExport = json
+                                        exportLauncher.launch("beatwave_backup.json")
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier
@@ -1061,6 +1102,77 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Restore JSON", fontSize = 12.sp)
                     }
+                }
+            }
+        }
+
+        // Crash Reports Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SurfaceHighlightDark),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BugReport,
+                            contentDescription = null,
+                            tint = PrimaryViolet,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Crash Reports",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                        Text(
+                            text = "Local crash logs (last 10 reports). Kept on-device only.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val reports = CrashReportManager.getCrashReports(context)
+                            withContext(Dispatchers.Main) {
+                                crashReportsList = reports
+                                showCrashReportsDialog = true
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("view_crash_reports_button"),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryViolet),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BugReport,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("View Crash Reports", fontSize = 12.sp)
                 }
             }
         }
@@ -1100,7 +1212,293 @@ fun SettingsScreen(
             }
         }
     }
-}
+
+    // Restore Confirmation Dialog
+    if (showConfirmRestoreDialog && pendingRestoreJson != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showConfirmRestoreDialog = false
+                pendingRestoreJson = null
+            },
+            containerColor = SurfaceDark,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = PrimaryViolet
+                    )
+                    Text(
+                        text = "Restore Backup?",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "Restoring this backup will replace current playlists, custom song order, favorites, stats, achievements, and settings. Are you sure you want to proceed?",
+                    style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val json = pendingRestoreJson
+                        showConfirmRestoreDialog = false
+                        pendingRestoreJson = null
+                        if (json != null) {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                try {
+                                    val summary = onImportBackup(json)
+                                    withContext(Dispatchers.Main) {
+                                        restoreSummaryToShow = summary
+                                        Toast.makeText(context, "Backup restored successfully!", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "Restore failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet)
+                ) {
+                    Text("Restore", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmRestoreDialog = false
+                        pendingRestoreJson = null
+                    }
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // Restore Summary Dialog
+    restoreSummaryToShow?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { restoreSummaryToShow = null },
+            containerColor = SurfaceDark,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = SecondaryCyan
+                    )
+                    Text(
+                        text = "Restore Summary",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Backup successfully restored with the following results:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "• Matched songs: ${summary.matchedSongs}",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                    Text(
+                        text = "• Unmatched songs: ${summary.unmatchedSongs}",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = if (summary.unmatchedSongs > 0) PrimaryViolet else TextSecondary
+                        )
+                    )
+                    Text(
+                        text = "• Restored playlists: ${summary.restoredPlaylists}",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary)
+                    )
+                    if (summary.restoredVideos > 0) {
+                        Text(
+                            text = "• Restored video positions: ${summary.restoredVideos}",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { restoreSummaryToShow = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet)
+                ) {
+                    Text("Done", color = Color.White)
+                }
+            }
+        )
+    }
+
+    // Crash Reports List Dialog
+    if (showCrashReportsDialog) {
+        AlertDialog(
+            onDismissRequest = { showCrashReportsDialog = false },
+            containerColor = SurfaceDark,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BugReport,
+                        contentDescription = null,
+                        tint = PrimaryViolet
+                    )
+                    Text(
+                        text = "Crash Reports (${crashReportsList.size})",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                }
+            },
+            text = {
+                if (crashReportsList.isEmpty()) {
+                    Text(
+                        text = "No crash reports recorded. BeatWave is running stably!\n\nCrash logs are automatically captured on uncaught exceptions and saved only locally (up to 10 reports). No data is sent to any server.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(340.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Last ${crashReportsList.size} crash(es) recorded locally on this device:",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                        crashReportsList.forEach { report ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceHighlightDark),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = report.formattedTime,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary
+                                            )
+                                        )
+                                        Button(
+                                            onClick = {
+                                                CrashReportManager.shareCrashReport(context, report)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet),
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Share",
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Share", fontSize = 11.sp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "${report.deviceModel} • v${report.appVersion}",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary, fontSize = 10.sp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "${report.exceptionType}: ${report.exceptionMessage}",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = PrimaryNeon,
+                                            fontSize = 11.sp
+                                        ),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (report.stackTrace.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = report.stackTrace.lines().take(4).joinToString("\n"),
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = TextSecondary,
+                                                fontSize = 9.sp,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (crashReportsList.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    CrashReportManager.clearCrashReports(context)
+                                    withContext(Dispatchers.Main) {
+                                        crashReportsList = emptyList()
+                                        Toast.makeText(context, "Crash reports cleared", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5252))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Clear", fontSize = 12.sp)
+                        }
+                    }
+                    Button(
+                        onClick = { showCrashReportsDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet)
+                    ) {
+                        Text("Close", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+            }
+        )
+    }
 
 @Composable
 private fun SettingToggleItem(

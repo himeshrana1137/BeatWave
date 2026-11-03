@@ -137,10 +137,11 @@ data class SubtitleLine(
     val text: String
 )
 
-enum class VideoAspectRatio {
-    FIT,
-    FILL,
-    ZOOM
+enum class VideoAspectRatio(val label: String) {
+    FIT("Fit"),
+    FILL("Fill (Crop)"),
+    ZOOM("Zoom"),
+    ORIGINAL("Original")
 }
 
 data class Playlist(

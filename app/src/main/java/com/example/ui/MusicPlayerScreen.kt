@@ -28,12 +28,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,11 +48,14 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -79,7 +86,11 @@ import com.example.ui.components.VaultDialog
 import com.example.ui.components.StreamUrlDialog
 import com.example.ui.components.BeatWaveWrappedDialog
 import com.example.ui.components.AchievementsDialog
+import com.example.util.CrashReport
+import com.example.util.CrashReportManager
 import com.example.util.MediaShareHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
@@ -164,8 +175,18 @@ fun MusicPlayerScreen(
         }
     }
 
+    var pendingCrashReport by remember { mutableStateOf<CrashReport?>(null) }
+
     LaunchedEffect(Unit) {
         storagePermissionLauncher.launch(permissionsToRequest)
+        withContext(Dispatchers.IO) {
+            val crash = CrashReportManager.checkAndConsumePendingCrash(context)
+            if (crash != null) {
+                withContext(Dispatchers.Main) {
+                    pendingCrashReport = crash
+                }
+            }
+        }
     }
 
     // Audio file picker launcher
@@ -749,6 +770,71 @@ fun MusicPlayerScreen(
             AchievementsDialog(
                 achievements = viewModel.achievementManager.getAchievements(listeningStats),
                 onDismiss = { viewModel.closeAchievementsDialog() }
+            )
+        }
+
+        // Crash Report Prompt on Launch
+        pendingCrashReport?.let { crash ->
+            AlertDialog(
+                onDismissRequest = { pendingCrashReport = null },
+                containerColor = SurfaceDark,
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BugReport,
+                            contentDescription = null,
+                            tint = PrimaryViolet
+                        )
+                        Text(
+                            text = "Crash Report Available",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "BeatWave recovered from an unexpected crash in your previous session (${crash.formattedTime}):",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                        Text(
+                            text = "${crash.exceptionType}: ${crash.exceptionMessage}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = PrimaryViolet
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Would you like to share this crash report? No data is sent to any server.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            CrashReportManager.shareCrashReport(context, crash)
+                            pendingCrashReport = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet)
+                    ) {
+                        Text("Share Report", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { pendingCrashReport = null }
+                    ) {
+                        Text("Dismiss", color = TextSecondary)
+                    }
+                }
             )
         }
     }

@@ -20,6 +20,7 @@ import com.example.model.MainBottomTab
 import com.example.model.NavigationTab
 import com.example.model.PlaybackSnapshot
 import com.example.model.Playlist
+import com.example.model.RestoreSummary
 import com.example.model.Song
 import com.example.model.SongDetailedInfo
 import com.example.model.AudioQualityFilter
@@ -506,6 +507,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             _songs.value = loadedSongs
             _playlists.value = loadedPlaylists
             _videos.value = loadedVideos
+            playbackManager.restoreSavedPlaybackState(loadedSongs)
             refreshListeningStats()
             _isLoading.value = false
             scanDeviceMedia()
@@ -519,6 +521,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val (updatedSongs, updatedVideos) = repository.syncDeviceMedia()
                 _songs.value = updatedSongs
                 _videos.value = updatedVideos
+                if (playbackManager.snapshot.value.currentSong == null) {
+                    playbackManager.restoreSavedPlaybackState(updatedSongs)
+                }
                 refreshListeningStats()
             } catch (e: Exception) {
                 Log.e("MusicViewModel", "Error scanning device media: ${e.message}")
@@ -951,17 +956,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Backup & Restore
     suspend fun exportBackupJson(): String = repository.exportBackupJson()
 
-    fun importBackupJson(jsonString: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            val success = repository.importBackupJson(jsonString)
-            if (success) {
-                _songs.value = repository.loadSongs()
-                _playlists.value = repository.loadPlaylists()
-                refreshListeningStats()
-            }
-            _isLoading.value = false
-        }
+    suspend fun importBackupJson(jsonString: String): RestoreSummary {
+        _isLoading.value = true
+        val summary = repository.importBackupJson(jsonString)
+        _songs.value = repository.loadSongs()
+        _playlists.value = repository.loadPlaylists()
+        _videos.value = repository.loadVideos()
+        _appSettings.value = repository.getAppSettings()
+        refreshListeningStats()
+        _isLoading.value = false
+        return summary
+    }
+
+    fun savePlaybackState() {
+        playbackManager.savePlaybackState()
     }
 
     fun refreshListeningStats() {
@@ -977,6 +985,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 getApplication<Application>().contentResolver.unregisterContentObserver(it)
             }
         } catch (_: Exception) {}
+        playbackManager.savePlaybackState()
         playbackManager.release()
     }
 }

@@ -39,3 +39,10 @@ data class SongDetailedInfo(
     val filePath: String,
     val dateAddedFormatted: String
 )
+
+data class RestoreSummary(
+    val matchedSongs: Int,
+    val unmatchedSongs: Int,
+    val restoredPlaylists: Int,
+    val restoredVideos: Int
+)

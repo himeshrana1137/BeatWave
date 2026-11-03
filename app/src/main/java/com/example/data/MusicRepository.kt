@@ -21,6 +21,7 @@ import com.example.model.ContainerSortMode
 import com.example.model.DuplicateSongGroup
 import com.example.model.ListeningStats
 import com.example.model.Playlist
+import com.example.model.RestoreSummary
 import com.example.model.Song
 import com.example.model.SongDetailedInfo
 import com.example.model.VideoItem
@@ -345,27 +346,12 @@ class MusicRepository(private val context: Context) {
 
     suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         val root = JSONObject()
-        root.put("version", 1)
+        root.put("version", 2)
         root.put("exportTimestamp", System.currentTimeMillis())
 
-        val songsArray = JSONArray()
-        loadSongs().forEach { song ->
-            val obj = JSONObject().apply {
-                put("id", song.id)
-                put("title", song.title)
-                put("artist", song.artist)
-                put("album", song.album)
-                put("durationMs", song.durationMs)
-                put("uriString", song.uriString)
-                put("isFavorite", song.isFavorite)
-                put("playCount", song.playCount)
-                put("lastPlayedTime", song.lastPlayedTime)
-                put("lyricsUriString", song.lyricsUriString ?: "")
-            }
-            songsArray.put(obj)
-        }
-        root.put("songs", songsArray)
+        val allSongs = loadSongs()
 
+        // 1. Playlists
         val playlistsArray = JSONArray()
         loadPlaylists().forEach { playlist ->
             val obj = JSONObject().apply {
@@ -375,66 +361,390 @@ class MusicRepository(private val context: Context) {
                 val sArray = JSONArray()
                 playlist.songIds.forEach { sArray.put(it) }
                 put("songIds", sArray)
+
+                // Also store minimal song snapshots to help cross-device restore
+                val songSnapshots = JSONArray()
+                playlist.songIds.mapNotNull { sid -> allSongs.firstOrNull { it.id == sid } }.forEach { s ->
+                    val sObj = JSONObject().apply {
+                        put("id", s.id)
+                        put("title", s.title)
+                        put("artist", s.artist)
+                        put("durationMs", s.durationMs)
+                        put("uriString", s.uriString)
+                        put("folderPath", s.folderPath)
+                    }
+                    songSnapshots.put(sObj)
+                }
+                put("songSnapshots", songSnapshots)
             }
             playlistsArray.put(obj)
         }
         root.put("playlists", playlistsArray)
 
+        // 2. Custom song order & container sorts
+        try {
+            val customOrdersStr = prefs.getString(KEY_CUSTOM_ORDERS, "{}") ?: "{}"
+            root.put("customOrders", JSONObject(customOrdersStr))
+        } catch (_: Exception) {}
+
+        try {
+            val containerSortsStr = prefs.getString(KEY_CONTAINER_SORTS, "{}") ?: "{}"
+            root.put("containerSorts", JSONObject(containerSortsStr))
+        } catch (_: Exception) {}
+
+        // 3. Favorites
+        val favoritesArray = JSONArray()
+        allSongs.filter { it.isFavorite }.forEach { s ->
+            val fObj = JSONObject().apply {
+                put("id", s.id)
+                put("title", s.title)
+                put("artist", s.artist)
+                put("durationMs", s.durationMs)
+                put("uriString", s.uriString)
+                put("folderPath", s.folderPath)
+            }
+            favoritesArray.put(fObj)
+        }
+        root.put("favorites", favoritesArray)
+
+        // 4. Listening stats
+        val stats = getListeningStats()
+        val statsObj = JSONObject().apply {
+            put("totalTracksPlayed", stats.totalTracksPlayed)
+            put("totalDurationListenedMs", stats.totalDurationListenedMs)
+            put("topArtist", stats.mostPlayedArtist)
+            put("totalSongs", stats.totalSongs)
+            put("totalPlaylists", stats.totalPlaylists)
+        }
+        root.put("listeningStats", statsObj)
+
+        // 5. Achievements
+        try {
+            val achievePrefs = context.getSharedPreferences("beatwave_achievements", Context.MODE_PRIVATE)
+            val achieveObj = JSONObject()
+            achievePrefs.all.forEach { (k, v) ->
+                when (v) {
+                    is Boolean -> achieveObj.put(k, v)
+                    is Long -> achieveObj.put(k, v)
+                    is Int -> achieveObj.put(k, v)
+                    is String -> achieveObj.put(k, v)
+                }
+            }
+            root.put("achievements", achieveObj)
+        } catch (_: Exception) {}
+
+        // 6. Mood tags
+        val moodTagsArray = JSONArray()
+        allSongs.filter { it.moodTags.isNotEmpty() }.forEach { s ->
+            val mObj = JSONObject().apply {
+                put("id", s.id)
+                put("title", s.title)
+                put("durationMs", s.durationMs)
+                put("uriString", s.uriString)
+                val arr = JSONArray()
+                s.moodTags.forEach { arr.put(it) }
+                put("moods", arr)
+            }
+            moodTagsArray.put(mObj)
+        }
+        root.put("moodTags", moodTagsArray)
+
+        // 7. Settings
+        val settings = getAppSettings()
+        val settingsObj = JSONObject().apply {
+            put("autoPauseOnCallAndUnplug", settings.autoPauseOnCallAndUnplug)
+            put("headsetDoublePressEnabled", settings.headsetDoublePressEnabled)
+            put("shakeToSkipEnabled", settings.shakeToSkipEnabled)
+            put("filterShortAudioEnabled", settings.filterShortAudioEnabled)
+            put("minAudioDurationSec", settings.minAudioDurationSec)
+            put("volumeNormalization", settings.volumeNormalization)
+            put("fadeInOutEnabled", settings.fadeInOutEnabled)
+            put("autoFetchLyrics", settings.autoFetchLyrics)
+            put("backgroundVideoAudioOnly", settings.backgroundVideoAudioOnly)
+            put("reduceAnimations", settings.reduceAnimations)
+            put("fetchOnlineCoverArt", settings.fetchOnlineCoverArt)
+            put("showQualityBadges", settings.showQualityBadges)
+            put("autoScanEnabled", settings.autoScanEnabled)
+            val blArray = JSONArray()
+            settings.blacklistedFolders.forEach { blArray.put(it) }
+            put("blacklistedFolders", blArray)
+        }
+        root.put("settings", settingsObj)
+
+        // 8. Video resume positions
+        val videosArray = JSONArray()
+        loadVideos().forEach { v ->
+            val vObj = JSONObject().apply {
+                put("id", v.id)
+                put("title", v.title)
+                put("durationMs", v.durationMs)
+                put("uriString", v.uriString)
+                put("lastPositionMs", v.lastPositionMs)
+            }
+            videosArray.put(vObj)
+        }
+        root.put("videoResumePositions", videosArray)
+
+        // 9. Full Songs list with all details
+        val songsArray = JSONArray()
+        allSongs.forEach { song ->
+            val obj = JSONObject().apply {
+                put("id", song.id)
+                put("title", song.title)
+                put("artist", song.artist)
+                put("album", song.album)
+                put("durationMs", song.durationMs)
+                put("uriString", song.uriString)
+                put("folderPath", song.folderPath)
+                put("isFavorite", song.isFavorite)
+                put("playCount", song.playCount)
+                put("lastPlayedTime", song.lastPlayedTime)
+                put("lyricsUriString", song.lyricsUriString ?: "")
+                val mArr = JSONArray()
+                song.moodTags.forEach { mArr.put(it) }
+                put("moodTags", mArr)
+            }
+            songsArray.put(obj)
+        }
+        root.put("songs", songsArray)
+
         root.toString(2)
     }
 
-    suspend fun importBackupJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun importBackupJson(jsonString: String): RestoreSummary = withContext(Dispatchers.IO) {
+        var matchedCount = 0
+        var unmatchedCount = 0
+        var restoredPlaylistsCount = 0
+        var restoredVideosCount = 0
+
         try {
             val root = JSONObject(jsonString)
-            if (root.has("songs")) {
-                val songsArray = root.getJSONArray("songs")
-                val importedSongs = mutableListOf<Song>()
-                for (i in 0 until songsArray.length()) {
-                    val obj = songsArray.getJSONObject(i)
-                    importedSongs.add(
-                        Song(
-                            id = obj.getString("id"),
-                            title = obj.getString("title"),
-                            artist = obj.optString("artist", "Unknown Artist"),
-                            album = obj.optString("album", "Unknown Album"),
-                            durationMs = obj.optLong("durationMs", 0L),
-                            uriString = obj.getString("uriString"),
-                            isFavorite = obj.optBoolean("isFavorite", false),
-                            playCount = obj.optInt("playCount", 0),
-                            lastPlayedTime = obj.optLong("lastPlayedTime", 0L),
-                            lyricsUriString = obj.optString("lyricsUriString", null).takeIf { !it.isNullOrBlank() }
-                        )
-                    )
+            val currentSongs = loadSongs().toMutableList()
+
+            // Helper to match a backup song with a current song:
+            // 1. By file path first
+            // 2. Then by title plus duration
+            fun matchSong(bUri: String, bTitle: String, bDurationMs: Long, bFolderPath: String): Song? {
+                val normBUri = if (bUri.startsWith("file://")) bUri.removePrefix("file://") else bUri
+                // 1. File path match
+                val byPath = currentSongs.firstOrNull { cur ->
+                    val normCur = if (cur.uriString.startsWith("file://")) cur.uriString.removePrefix("file://") else cur.uriString
+                    cur.uriString == bUri ||
+                    normCur == normBUri ||
+                    (bFolderPath.isNotBlank() && cur.folderPath.isNotBlank() && cur.folderPath == bFolderPath && cur.title.equals(bTitle, ignoreCase = true))
                 }
-                saveSongs(importedSongs)
+                if (byPath != null) return byPath
+
+                // 2. Title plus duration match
+                if (bTitle.isNotBlank() && bDurationMs > 0) {
+                    return currentSongs.firstOrNull { cur ->
+                        cur.title.trim().equals(bTitle.trim(), ignoreCase = true) &&
+                        kotlin.math.abs(cur.durationMs - bDurationMs) <= 3000
+                    }
+                }
+                return null
             }
 
+            // Map old backup song ID -> matched current song ID
+            val idMap = mutableMapOf<String, String>()
+
+            if (root.has("songs")) {
+                val songsArray = root.getJSONArray("songs")
+                for (i in 0 until songsArray.length()) {
+                    val obj = songsArray.getJSONObject(i)
+                    val bId = obj.getString("id")
+                    val bTitle = obj.optString("title", "")
+                    val bUri = obj.optString("uriString", "")
+                    val bDuration = obj.optLong("durationMs", 0L)
+                    val bFolder = obj.optString("folderPath", "")
+                    val isFav = obj.optBoolean("isFavorite", false)
+                    val playCount = obj.optInt("playCount", 0)
+                    val lastPlayed = obj.optLong("lastPlayedTime", 0L)
+                    val lyricsUri = obj.optString("lyricsUriString", "").takeIf { it.isNotBlank() }
+
+                    val moods = mutableListOf<String>()
+                    val mArr = obj.optJSONArray("moodTags")
+                    if (mArr != null) {
+                        for (m in 0 until mArr.length()) moods.add(mArr.getString(m))
+                    }
+
+                    val matched = matchSong(bUri, bTitle, bDuration, bFolder)
+                    if (matched != null) {
+                        matchedCount++
+                        idMap[bId] = matched.id
+                        val idx = currentSongs.indexOfFirst { it.id == matched.id }
+                        if (idx >= 0) {
+                            currentSongs[idx] = currentSongs[idx].copy(
+                                isFavorite = isFav || currentSongs[idx].isFavorite,
+                                playCount = kotlin.math.max(currentSongs[idx].playCount, playCount),
+                                lastPlayedTime = kotlin.math.max(currentSongs[idx].lastPlayedTime, lastPlayed),
+                                moodTags = (currentSongs[idx].moodTags + moods).distinct(),
+                                lyricsUriString = lyricsUri ?: currentSongs[idx].lyricsUriString
+                            )
+                        }
+                    } else {
+                        unmatchedCount++
+                    }
+                }
+                saveSongs(currentSongs)
+            }
+
+            // Restore Playlists
             if (root.has("playlists")) {
                 val playlistsArray = root.getJSONArray("playlists")
-                val importedPlaylists = mutableListOf<Playlist>()
+                val restoredPlaylists = mutableListOf<Playlist>()
                 for (i in 0 until playlistsArray.length()) {
                     val obj = playlistsArray.getJSONObject(i)
                     val sArray = obj.optJSONArray("songIds") ?: JSONArray()
-                    val sIds = mutableListOf<String>()
+                    val resolvedIds = mutableListOf<String>()
+
                     for (j in 0 until sArray.length()) {
-                        sIds.add(sArray.getString(j))
+                        val oldId = sArray.getString(j)
+                        val newId = idMap[oldId]
+                        if (newId != null && currentSongs.any { it.id == newId }) {
+                            resolvedIds.add(newId)
+                        }
                     }
-                    importedPlaylists.add(
+
+                    // Fallback to song snapshots if available and resolvedIds is empty
+                    if (resolvedIds.isEmpty() && obj.has("songSnapshots")) {
+                        val snaps = obj.getJSONArray("songSnapshots")
+                        for (s in 0 until snaps.length()) {
+                            val snap = snaps.getJSONObject(s)
+                            val matched = matchSong(
+                                snap.optString("uriString", ""),
+                                snap.optString("title", ""),
+                                snap.optLong("durationMs", 0L),
+                                snap.optString("folderPath", "")
+                            )
+                            if (matched != null && !resolvedIds.contains(matched.id)) {
+                                resolvedIds.add(matched.id)
+                            }
+                        }
+                    }
+
+                    restoredPlaylists.add(
                         Playlist(
                             id = obj.getString("id"),
                             name = obj.getString("name"),
                             description = obj.optString("description", ""),
-                            songIds = sIds
+                            songIds = resolvedIds
                         )
                     )
                 }
-                savePlaylists(importedPlaylists)
+                savePlaylists(restoredPlaylists)
+                restoredPlaylistsCount = restoredPlaylists.size
             }
-            true
+
+            // Restore Custom Song Order & Container Sorts
+            if (root.has("customOrders")) {
+                try {
+                    val coObj = root.getJSONObject("customOrders")
+                    val mappedOrders = JSONObject()
+                    coObj.keys().forEach { containerKey ->
+                        val arr = coObj.getJSONArray(containerKey)
+                        val mappedArr = JSONArray()
+                        for (k in 0 until arr.length()) {
+                            val oldId = arr.getString(k)
+                            val newId = idMap[oldId] ?: oldId
+                            mappedArr.put(newId)
+                        }
+                        mappedOrders.put(containerKey, mappedArr)
+                    }
+                    prefs.edit().putString(KEY_CUSTOM_ORDERS, mappedOrders.toString()).apply()
+                } catch (_: Exception) {}
+            }
+
+            if (root.has("containerSorts")) {
+                try {
+                    prefs.edit().putString(KEY_CONTAINER_SORTS, root.getJSONObject("containerSorts").toString()).apply()
+                } catch (_: Exception) {}
+            }
+
+            // Restore Achievements
+            if (root.has("achievements")) {
+                try {
+                    val aObj = root.getJSONObject("achievements")
+                    val aPrefs = context.getSharedPreferences("beatwave_achievements", Context.MODE_PRIVATE).edit()
+                    aObj.keys().forEach { key ->
+                        val value = aObj.get(key)
+                        when (value) {
+                            is Boolean -> aPrefs.putBoolean(key, value)
+                            is Long -> aPrefs.putLong(key, value)
+                            is Int -> aPrefs.putLong(key, value.toLong())
+                            is String -> aPrefs.putString(key, value)
+                        }
+                    }
+                    aPrefs.apply()
+                } catch (_: Exception) {}
+            }
+
+            // Restore Settings
+            if (root.has("settings")) {
+                try {
+                    val sObj = root.getJSONObject("settings")
+                    val pEdit = prefs.edit()
+                    if (sObj.has("autoPauseOnCallAndUnplug")) pEdit.putBoolean(KEY_AUTO_PAUSE, sObj.getBoolean("autoPauseOnCallAndUnplug"))
+                    if (sObj.has("headsetDoublePressEnabled")) pEdit.putBoolean(KEY_HEADSET_DOUBLE_PRESS, sObj.getBoolean("headsetDoublePressEnabled"))
+                    if (sObj.has("shakeToSkipEnabled")) pEdit.putBoolean(KEY_SHAKE_TO_SKIP, sObj.getBoolean("shakeToSkipEnabled"))
+                    if (sObj.has("filterShortAudioEnabled")) pEdit.putBoolean(KEY_FILTER_SHORT_AUDIO, sObj.getBoolean("filterShortAudioEnabled"))
+                    if (sObj.has("minAudioDurationSec")) pEdit.putInt(KEY_MIN_DURATION_SEC, sObj.getInt("minAudioDurationSec"))
+                    if (sObj.has("volumeNormalization")) pEdit.putBoolean(KEY_VOLUME_NORM, sObj.getBoolean("volumeNormalization"))
+                    if (sObj.has("fadeInOutEnabled")) pEdit.putBoolean(KEY_FADE_IN_OUT, sObj.getBoolean("fadeInOutEnabled"))
+                    if (sObj.has("autoFetchLyrics")) pEdit.putBoolean(KEY_AUTO_LYRICS, sObj.getBoolean("autoFetchLyrics"))
+                    if (sObj.has("backgroundVideoAudioOnly")) pEdit.putBoolean(KEY_BG_VIDEO_AUDIO, sObj.getBoolean("backgroundVideoAudioOnly"))
+                    if (sObj.has("reduceAnimations")) pEdit.putBoolean(KEY_REDUCE_ANIM, sObj.getBoolean("reduceAnimations"))
+                    if (sObj.has("fetchOnlineCoverArt")) pEdit.putBoolean(KEY_FETCH_ONLINE_COVER, sObj.getBoolean("fetchOnlineCoverArt"))
+                    if (sObj.has("showQualityBadges")) pEdit.putBoolean(KEY_SHOW_QUALITY_BADGES, sObj.getBoolean("showQualityBadges"))
+                    if (sObj.has("autoScanEnabled")) pEdit.putBoolean(KEY_AUTO_SCAN, sObj.getBoolean("autoScanEnabled"))
+
+                    if (sObj.has("blacklistedFolders")) {
+                        val blArr = sObj.getJSONArray("blacklistedFolders")
+                        val set = mutableSetOf<String>()
+                        for (b in 0 until blArr.length()) set.add(blArr.getString(b))
+                        pEdit.putStringSet(KEY_BLACKLISTED_FOLDERS, set)
+                    }
+                    pEdit.apply()
+                } catch (_: Exception) {}
+            }
+
+            // Restore Video Resume Positions
+            if (root.has("videoResumePositions")) {
+                try {
+                    val vArr = root.getJSONArray("videoResumePositions")
+                    val currentVideos = loadVideos().toMutableList()
+                    for (v in 0 until vArr.length()) {
+                        val vObj = vArr.getJSONObject(v)
+                        val vUri = vObj.optString("uriString", "")
+                        val vTitle = vObj.optString("title", "")
+                        val vPos = vObj.optLong("lastPositionMs", 0L)
+                        val vDur = vObj.optLong("durationMs", 0L)
+
+                        if (vPos > 0) {
+                            val idx = currentVideos.indexOfFirst { cur ->
+                                cur.uriString == vUri ||
+                                (cur.title.equals(vTitle, ignoreCase = true) && kotlin.math.abs(cur.durationMs - vDur) <= 3000)
+                            }
+                            if (idx >= 0) {
+                                currentVideos[idx] = currentVideos[idx].copy(lastPositionMs = vPos)
+                                restoredVideosCount++
+                            }
+                        }
+                    }
+                    saveVideos(currentVideos)
+                } catch (_: Exception) {}
+            }
+
         } catch (e: Exception) {
             Log.e("MusicRepository", "Failed to import backup JSON: ${e.message}")
-            false
         }
+
+        RestoreSummary(
+            matchedSongs = matchedCount,
+            unmatchedSongs = unmatchedCount,
+            restoredPlaylists = restoredPlaylistsCount,
+            restoredVideos = restoredVideosCount
+        )
     }
 
     suspend fun loadAllRawSongs(): List<Song> = withContext(Dispatchers.IO) {
