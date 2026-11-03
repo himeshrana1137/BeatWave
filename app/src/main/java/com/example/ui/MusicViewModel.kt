@@ -21,6 +21,8 @@ import com.example.model.NavigationTab
 import com.example.model.PlaybackSnapshot
 import com.example.model.Playlist
 import com.example.model.Song
+import com.example.model.displayTitle
+import com.example.model.displayArtist
 import com.example.model.SongDetailedInfo
 import com.example.model.AudioQualityFilter
 import com.example.model.AudioQualityTier
@@ -437,7 +439,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val q = query.trim().lowercase()
             list = list.filter {
                 it.title.lowercase().contains(q) ||
+                        it.displayTitle.lowercase().contains(q) ||
                         it.artist.lowercase().contains(q) ||
+                        it.displayArtist.lowercase().contains(q) ||
                         it.album.lowercase().contains(q) ||
                         it.folderName.lowercase().contains(q)
             }

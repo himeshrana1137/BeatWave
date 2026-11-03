@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,15 +14,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,19 +36,31 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.MusicRepository
 import com.example.model.NavigationTab
 import com.example.model.Song
+import com.example.model.displayArtist
+import com.example.model.displayTitle
+import com.example.ui.theme.CardBorder
+import com.example.ui.theme.PrimaryNeon
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
@@ -68,8 +87,19 @@ fun SearchScreen(
     onCutRingtone: ((Song) -> Unit)? = null,
     onPlayNext: ((Song) -> Unit)? = null,
     onAddToQueue: ((Song) -> Unit)? = null,
+    showQualityBadges: Boolean = true,
+    reduceAnimations: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val repository = remember { MusicRepository(context) }
+    var recentSearches by remember { mutableStateOf(repository.getRecentSearches()) }
+
+    val recentlyPlayedSongs = remember(allSongs) {
+        val played = allSongs.filter { it.lastPlayedTime > 0L }.sortedByDescending { it.lastPlayedTime }
+        if (played.isNotEmpty()) played.take(10) else allSongs.take(8)
+    }
+
     Column(
         modifier = modifier
             .testTag("search_screen")
@@ -86,7 +116,7 @@ fun SearchScreen(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
 
-        // Search Bar Input
+        // Search Bar Input (Live Search while typing)
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
@@ -134,73 +164,256 @@ fun SearchScreen(
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         if (searchQuery.isBlank()) {
-            // Category Browse Cards
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                item {
-                    Text(
-                        text = "Browse all",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        ),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                }
+                // Recent Searches Row (with Clear Button)
+                if (recentSearches.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Recent searches",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary,
+                                        fontSize = 16.sp
+                                    )
+                                )
+                                TextButton(
+                                    onClick = {
+                                        repository.clearRecentSearches()
+                                        recentSearches = emptyList()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Clear",
+                                        color = PrimaryViolet,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
 
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CategoryBrowseCard(
-                            title = "Songs",
-                            subtitle = "${allSongs.size} tracks",
-                            icon = Icons.Default.MusicNote,
-                            gradient = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
-                            onClick = { onCategoryClick(NavigationTab.SONGS) },
-                            modifier = Modifier.weight(1f)
-                        )
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                        CategoryBrowseCard(
-                            title = "Albums",
-                            subtitle = "Full collections",
-                            icon = Icons.Default.Album,
-                            gradient = listOf(Color(0xFF06B6D4), Color(0xFF0E7490)),
-                            onClick = { onCategoryClick(NavigationTab.ALBUMS) },
-                            modifier = Modifier.weight(1f)
-                        )
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(recentSearches, key = { it }) { queryItem ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(SurfaceHighlightDark)
+                                            .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
+                                            .clickable { onSearchQueryChange(queryItem) }
+                                            .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.History,
+                                            contentDescription = null,
+                                            tint = TextSecondary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = queryItem,
+                                            color = TextPrimary,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        IconButton(
+                                            onClick = {
+                                                repository.removeRecentSearch(queryItem)
+                                                recentSearches = repository.getRecentSearches()
+                                            },
+                                            modifier = Modifier.size(20.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Remove recent search",
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
+                // Category Browse Cards ("Browse all")
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
                     ) {
-                        CategoryBrowseCard(
-                            title = "Artists",
-                            subtitle = "Performers & bands",
-                            icon = Icons.Default.Person,
-                            gradient = listOf(Color(0xFFEC4899), Color(0xFFBE185D)),
-                            onClick = { onCategoryClick(NavigationTab.ARTISTS) },
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            text = "Browse all",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            ),
+                            modifier = Modifier.padding(bottom = 10.dp)
                         )
 
-                        CategoryBrowseCard(
-                            title = "Folders",
-                            subtitle = "Device storage",
-                            icon = Icons.Default.Folder,
-                            gradient = listOf(Color(0xFF6366F1), Color(0xFF4338CA)),
-                            onClick = { onCategoryClick(NavigationTab.FOLDERS) },
-                            modifier = Modifier.weight(1f)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CategoryBrowseCard(
+                                title = "Songs",
+                                subtitle = "${allSongs.size} tracks",
+                                icon = Icons.Default.MusicNote,
+                                gradient = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
+                                onClick = { onCategoryClick(NavigationTab.SONGS) },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            CategoryBrowseCard(
+                                title = "Albums",
+                                subtitle = "Full collections",
+                                icon = Icons.Default.Album,
+                                gradient = listOf(Color(0xFF06B6D4), Color(0xFF0E7490)),
+                                onClick = { onCategoryClick(NavigationTab.ALBUMS) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CategoryBrowseCard(
+                                title = "Artists",
+                                subtitle = "Performers & bands",
+                                icon = Icons.Default.Person,
+                                gradient = listOf(Color(0xFFEC4899), Color(0xFFBE185D)),
+                                onClick = { onCategoryClick(NavigationTab.ARTISTS) },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            CategoryBrowseCard(
+                                title = "Folders",
+                                subtitle = "Device storage",
+                                icon = Icons.Default.Folder,
+                                gradient = listOf(Color(0xFF6366F1), Color(0xFF4338CA)),
+                                onClick = { onCategoryClick(NavigationTab.FOLDERS) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // Recently Played Row under category cards
+                if (recentlyPlayedSongs.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = "Recently played",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    fontSize = 17.sp
+                                ),
+                                modifier = Modifier.padding(bottom = 10.dp)
+                            )
+
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(recentlyPlayedSongs, key = { it.id }) { song ->
+                                    val isCurrent = song.id == currentSongId
+                                    Column(
+                                        modifier = Modifier
+                                            .width(115.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                onSongClick(song, recentlyPlayedSongs)
+                                            }
+                                            .padding(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(107.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                        ) {
+                                            AlbumArtThumbnail(
+                                                artPath = song.albumArtPath,
+                                                title = song.title,
+                                                modifier = Modifier.fillMaxSize(),
+                                                reduceAnimations = reduceAnimations
+                                            )
+
+                                            if (isCurrent && isPlaying) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(Color.Black.copy(alpha = 0.45f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    MiniEqualizerBars(
+                                                        isAnimating = true,
+                                                        color = PrimaryNeon,
+                                                        modifier = Modifier.size(24.dp),
+                                                        reduceAnimations = reduceAnimations
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        Text(
+                                            text = song.displayTitle,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isCurrent) PrimaryViolet else TextPrimary,
+                                                fontSize = 13.sp
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Text(
+                                            text = song.displayArtist,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = TextSecondary,
+                                                fontSize = 11.sp
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -258,7 +471,13 @@ fun SearchScreen(
                             song = song,
                             isCurrent = isCurrent,
                             isPlaying = isCurrent && isPlaying,
-                            onSongClick = { onSongClick(song, filteredSongs) },
+                            onSongClick = {
+                                if (searchQuery.isNotBlank()) {
+                                    repository.saveRecentSearch(searchQuery)
+                                    recentSearches = repository.getRecentSearches()
+                                }
+                                onSongClick(song, filteredSongs)
+                            },
                             onToggleFavorite = { onToggleFavorite(song) },
                             onAddToPlaylist = { onAddToPlaylist(song) },
                             onDeleteSong = { onDeleteSong(song) },
@@ -266,7 +485,9 @@ fun SearchScreen(
                             onShareSong = onShareSong,
                             onCutRingtone = onCutRingtone,
                             onPlayNext = onPlayNext,
-                            onAddToQueue = onAddToQueue
+                            onAddToQueue = onAddToQueue,
+                            showQualityBadges = showQualityBadges,
+                            reduceAnimations = reduceAnimations
                         )
                     }
                 }

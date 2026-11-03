@@ -26,6 +26,66 @@ data class Song(
             val seconds = totalSeconds % 60
             return String.format("%02d:%02d", minutes, seconds)
         }
+
+    val displayTitle: String
+        get() {
+            var clean = title.trim()
+
+            // If title is only digits or blank, derive nice name from uri/file path
+            if (clean.isBlank() || clean.all { it.isDigit() }) {
+                val fileName = try {
+                    val path = if (uriString.startsWith("content://")) {
+                        android.net.Uri.parse(uriString).lastPathSegment ?: ""
+                    } else {
+                        java.io.File(uriString).name
+                    }
+                    path.substringBeforeLast('.')
+                } catch (_: Exception) {
+                    ""
+                }
+                if (fileName.isNotBlank() && !fileName.all { it.isDigit() }) {
+                    clean = fileName
+                }
+            }
+
+            // Replace underscores with spaces
+            clean = clean.replace('_', ' ')
+
+            // Strip tags such as (Lyrics), [HD], (Official Video), (8D AUDIO), etc.
+            val tagRegex = """\s*[\(\[\{]\s*(?:official\s*(?:music\s*)?video|official\s*audio|official\s*lyric\s*video|official|lyrics?|8d\s*audio|hd|4k|hq|remastered|audio|video|visualizer|slowed(?:\s*\+\s*reverb)?|sped\s*up|clean|explicit)\s*[\)\]\}]""".toRegex(RegexOption.IGNORE_CASE)
+            clean = tagRegex.replace(clean, "")
+
+            // Collapse duplicate whitespace
+            clean = clean.replace("""\s+""".toRegex(), " ").trim()
+
+            return if (clean.isNotBlank()) clean else title
+        }
+
+    val displayArtist: String
+        get() {
+            val raw = artist.trim()
+            val isMissing = raw.isBlank() ||
+                    raw.equals("Unknown Artist", ignoreCase = true) ||
+                    raw.equals("<unknown>", ignoreCase = true) ||
+                    raw.equals("Unknown", ignoreCase = true)
+
+            if (isMissing) {
+                val folder = folderName.trim()
+                if (folder.isNotBlank() &&
+                    !folder.equals("Unknown", ignoreCase = true)
+                ) {
+                    return folder
+                }
+                if (folderPath.isNotBlank()) {
+                    val dirName = folderPath.trimEnd('/').substringAfterLast('/')
+                    if (dirName.isNotBlank()) {
+                        return dirName
+                    }
+                }
+                return if (folder.isNotBlank()) folder else "Music"
+            }
+            return raw
+        }
 }
 
 data class ListeningStats(

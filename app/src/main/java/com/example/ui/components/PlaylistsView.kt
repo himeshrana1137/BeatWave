@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +44,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -90,6 +93,7 @@ fun PlaylistsView(
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
     showQualityBadges: Boolean = true,
+    reduceAnimations: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (selectedPlaylist != null) {
@@ -115,6 +119,13 @@ fun PlaylistsView(
 
         var sortMenuExpanded by remember { mutableStateOf(false) }
 
+        val playlistListState = rememberLazyListState()
+        val isHeaderCollapsed by remember {
+            derivedStateOf {
+                playlistListState.firstVisibleItemIndex > 0 || playlistListState.firstVisibleItemScrollOffset > 30
+            }
+        }
+
         Column(
             modifier = modifier
                 .testTag("playlist_detail_view")
@@ -124,14 +135,16 @@ fun PlaylistsView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = { onSelectPlaylist(null) },
                     modifier = Modifier
                         .minimumInteractiveComponentSize()
-                        .size(44.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceDark)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -140,7 +153,7 @@ fun PlaylistsView(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -152,66 +165,106 @@ fun PlaylistsView(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = "${displayedSongs.size} tracks • ${if (selectedPlaylist.description.isNotBlank()) selectedPlaylist.description else "Custom Playlist"}",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (!isHeaderCollapsed) {
+                        Text(
+                            text = "${displayedSongs.size} tracks • ${if (selectedPlaylist.description.isNotBlank()) selectedPlaylist.description else "Custom Playlist"}",
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (isHeaderCollapsed && displayedSongs.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        IconButton(
+                            onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), false) },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryNeon)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play All",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), true) },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceHighlightDark)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = SecondaryCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            // Quick Play / Shuffle Buttons
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), false) },
-                    enabled = displayedSongs.isNotEmpty(),
+            AnimatedVisibility(visible = !isHeaderCollapsed) {
+                // Quick Play / Shuffle Buttons
+                Row(
                     modifier = Modifier
-                        .testTag("play_all_playlist_button")
-                        .weight(1f)
-                        .height(44.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryNeon,
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Play All", fontWeight = FontWeight.SemiBold)
-                }
+                    Button(
+                        onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), false) },
+                        enabled = displayedSongs.isNotEmpty(),
+                        modifier = Modifier
+                            .testTag("play_all_playlist_button")
+                            .weight(1f)
+                            .height(44.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryNeon,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Play All", fontWeight = FontWeight.SemiBold)
+                    }
 
-                OutlinedButton(
-                    onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), true) },
-                    enabled = displayedSongs.isNotEmpty(),
-                    modifier = Modifier
-                        .testTag("shuffle_playlist_button")
-                        .weight(1f)
-                        .height(44.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = SecondaryCyan
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.horizontalGradient(listOf(SecondaryCyan, PrimaryNeon))
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Shuffle", fontWeight = FontWeight.SemiBold)
+                    OutlinedButton(
+                        onClick = { onPlayPlaylist(selectedPlaylist.copy(songIds = displayedSongs.map { it.id }), true) },
+                        enabled = displayedSongs.isNotEmpty(),
+                        modifier = Modifier
+                            .testTag("shuffle_playlist_button")
+                            .weight(1f)
+                            .height(44.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = SecondaryCyan
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            brush = Brush.horizontalGradient(listOf(SecondaryCyan, PrimaryNeon))
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Shuffle", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 
@@ -416,8 +469,12 @@ fun PlaylistsView(
                     onShareSong = onShareSong,
                     onCutRingtone = onCutRingtone,
                     showQualityBadges = showQualityBadges,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
-                    modifier = Modifier.fillMaxSize()
+                    reduceAnimations = reduceAnimations,
+                    listState = playlistListState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 )
             }
         }

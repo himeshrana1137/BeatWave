@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -47,6 +48,8 @@ fun ReorderableSongList(
     onShareSong: ((Song) -> Unit)? = null,
     onCutRingtone: ((Song) -> Unit)? = null,
     showQualityBadges: Boolean = true,
+    reduceAnimations: Boolean = false,
+    listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     modifier: Modifier = Modifier
 ) {
@@ -56,8 +59,6 @@ fun ReorderableSongList(
 
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
-
-    val listState = rememberLazyListState()
 
     LazyColumn(
         state = listState,
@@ -166,6 +167,7 @@ fun ReorderableSongList(
                 onShareSong = onShareSong,
                 onCutRingtone = onCutRingtone,
                 showQualityBadges = showQualityBadges,
+                reduceAnimations = reduceAnimations,
                 modifier = itemModifier
             )
         }

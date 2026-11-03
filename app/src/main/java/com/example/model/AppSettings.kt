@@ -13,7 +13,8 @@ data class AppSettings(
     val backgroundVideoAudioOnly: Boolean = false,
     val reduceAnimations: Boolean = false,
     val fetchOnlineCoverArt: Boolean = false,
-    val showQualityBadges: Boolean = true
+    val showQualityBadges: Boolean = true,
+    val autoScanEnabled: Boolean = true
 )
 
 data class DuplicateSongGroup(

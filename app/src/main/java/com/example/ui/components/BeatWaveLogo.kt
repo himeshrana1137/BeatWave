@@ -103,16 +103,6 @@ fun BeatWaveLogoHeader(
                     letterSpacing = (-0.5).sp
                 )
             )
-            if (showSubtitle) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Box(
-                    modifier = Modifier
-                        .padding(bottom = 2.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryViolet)
-                        .size(4.dp)
-                )
-            }
         }
     }
 }

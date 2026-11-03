@@ -62,6 +62,7 @@ class MusicRepository(private val context: Context) {
         private const val KEY_REDUCE_ANIM = "key_reduce_anim"
         private const val KEY_FETCH_ONLINE_COVER = "key_fetch_online_cover"
         private const val KEY_SHOW_QUALITY_BADGES = "key_show_quality_badges"
+        private const val KEY_AUTO_SCAN = "key_auto_scan"
         private const val KEY_CUSTOM_ORDERS = "key_custom_orders"
         private const val KEY_CONTAINER_SORTS = "key_container_sorts"
     }
@@ -89,8 +90,13 @@ class MusicRepository(private val context: Context) {
             backgroundVideoAudioOnly = prefs.getBoolean(KEY_BG_VIDEO_AUDIO, false),
             reduceAnimations = prefs.getBoolean(KEY_REDUCE_ANIM, false),
             fetchOnlineCoverArt = prefs.getBoolean(KEY_FETCH_ONLINE_COVER, false),
-            showQualityBadges = prefs.getBoolean(KEY_SHOW_QUALITY_BADGES, true)
+            showQualityBadges = prefs.getBoolean(KEY_SHOW_QUALITY_BADGES, true),
+            autoScanEnabled = prefs.getBoolean(KEY_AUTO_SCAN, true)
         )
+    }
+
+    fun setAutoScanEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_SCAN, enabled).apply()
     }
 
     fun setShowQualityBadges(enabled: Boolean) {
@@ -140,6 +146,43 @@ class MusicRepository(private val context: Context) {
 
     fun setMinAudioDurationSec(seconds: Int) {
         prefs.edit().putInt(KEY_MIN_DURATION_SEC, seconds).apply()
+    }
+
+    fun getRecentSearches(): List<String> {
+        val raw = prefs.getString("key_recent_searches", null) ?: return emptyList()
+        return try {
+            val jsonArray = JSONArray(raw)
+            val list = mutableListOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                val item = jsonArray.optString(i, "")
+                if (item.isNotBlank()) list.add(item)
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveRecentSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        val current = getRecentSearches().toMutableList()
+        current.remove(trimmed)
+        current.add(0, trimmed)
+        val trimmedList = current.take(10)
+        val jsonArray = JSONArray(trimmedList)
+        prefs.edit().putString("key_recent_searches", jsonArray.toString()).apply()
+    }
+
+    fun removeRecentSearch(query: String) {
+        val current = getRecentSearches().toMutableList()
+        current.remove(query)
+        val jsonArray = JSONArray(current)
+        prefs.edit().putString("key_recent_searches", jsonArray.toString()).apply()
+    }
+
+    fun clearRecentSearches() {
+        prefs.edit().remove("key_recent_searches").apply()
     }
 
     fun getBlacklistedFolders(): Set<String> {

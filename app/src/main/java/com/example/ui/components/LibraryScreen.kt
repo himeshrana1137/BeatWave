@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,6 +121,7 @@ fun LibraryScreen(
     onAddToQueue: ((Song) -> Unit)? = null,
     onReorderPlaylistSongs: ((playlistId: String, newSongs: List<Song>) -> Unit)? = null,
     onReorderFolderSongs: ((folderKey: String, newSongs: List<Song>) -> Unit)? = null,
+    reduceAnimations: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     // Intercept back presses when inside a detail view
@@ -260,7 +263,8 @@ fun LibraryScreen(
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
                                     onCutRingtone = onCutRingtone,
-                                    showQualityBadges = showQualityBadges
+                                    showQualityBadges = showQualityBadges,
+                                    reduceAnimations = reduceAnimations
                                 )
                             }
                         }
@@ -306,7 +310,8 @@ fun LibraryScreen(
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
                                     onCutRingtone = onCutRingtone,
-                                    showQualityBadges = showQualityBadges
+                                    showQualityBadges = showQualityBadges,
+                                    reduceAnimations = reduceAnimations
                                 )
                             }
                         }
@@ -329,6 +334,12 @@ fun LibraryScreen(
                     }
 
                     var sortMenuExpanded by remember { mutableStateOf(false) }
+                    val folderListState = rememberLazyListState()
+                    val isFolderHeaderCollapsed by remember {
+                        derivedStateOf {
+                            folderListState.firstVisibleItemIndex > 0 || folderListState.firstVisibleItemScrollOffset > 30
+                        }
+                    }
 
                     Column(modifier = Modifier.fillMaxSize()) {
                         GroupDetailHeader(
@@ -343,6 +354,7 @@ fun LibraryScreen(
                                 )
                             },
                             songs = displayedSongs,
+                            isCollapsed = isFolderHeaderCollapsed,
                             onBack = { onSelectFolder(null) },
                             onPlayAll = { onPlayGroup(displayedSongs, 0) },
                             onShuffle = { onShuffleGroup(displayedSongs) }
@@ -513,8 +525,12 @@ fun LibraryScreen(
                             onShareSong = onShareSong,
                             onCutRingtone = onCutRingtone,
                             showQualityBadges = showQualityBadges,
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 120.dp),
-                            modifier = Modifier.fillMaxSize()
+                            reduceAnimations = reduceAnimations,
+                            listState = folderListState,
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
                         )
                     }
                 }
@@ -540,7 +556,8 @@ fun LibraryScreen(
                         onSongInfo = onSongInfo,
                         onShareSong = onShareSong,
                         onCutRingtone = onCutRingtone,
-                        showQualityBadges = showQualityBadges
+                        showQualityBadges = showQualityBadges,
+                        reduceAnimations = reduceAnimations
                     )
                 }
 
@@ -596,7 +613,8 @@ fun LibraryScreen(
                                     onSongInfo = onSongInfo,
                                     onShareSong = onShareSong,
                                     onCutRingtone = onCutRingtone,
-                                    showQualityBadges = showQualityBadges
+                                    showQualityBadges = showQualityBadges,
+                                    reduceAnimations = reduceAnimations
                                 )
                             }
                         }
@@ -744,7 +762,8 @@ fun LibraryScreen(
                                         onSongInfo = onSongInfo,
                                         onShareSong = onShareSong,
                                         onCutRingtone = onCutRingtone,
-                                        showQualityBadges = showQualityBadges
+                                        showQualityBadges = showQualityBadges,
+                                        reduceAnimations = reduceAnimations
                                     )
                                 }
                             }

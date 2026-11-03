@@ -367,7 +367,9 @@ fun MusicPlayerScreen(
                                 onOpenEqualizer = { viewModel.setShowEqualizer(true) },
                                 onOpenSettings = { viewModel.setShowSettings(true) },
                                 onOpenWrapped = { viewModel.openWrappedDialog() },
-                                onOpenAchievements = { viewModel.openAchievementsDialog() }
+                                onOpenAchievements = { viewModel.openAchievementsDialog() },
+                                onSearchClick = { viewModel.setMainBottomTab(MainBottomTab.SEARCH) },
+                                autoScanEnabled = appSettings.autoScanEnabled
                             )
                         }
 
@@ -393,7 +395,9 @@ fun MusicPlayerScreen(
                                 onShareSong = { MediaShareHelper.shareSong(context, it) },
                                 onCutRingtone = { viewModel.openRingtoneCutter(it) },
                                 onPlayNext = { viewModel.playNext(it) },
-                                onAddToQueue = { viewModel.addToQueue(it) }
+                                onAddToQueue = { viewModel.addToQueue(it) },
+                                showQualityBadges = appSettings.showQualityBadges,
+                                reduceAnimations = appSettings.reduceAnimations
                             )
                         }
 
@@ -437,7 +441,8 @@ fun MusicPlayerScreen(
                                 onPlayNext = { viewModel.playNext(it) },
                                 onAddToQueue = { viewModel.addToQueue(it) },
                                 onReorderPlaylistSongs = { id, list -> viewModel.reorderContainerSongs("playlist_$id", list) },
-                                onReorderFolderSongs = { key, list -> viewModel.reorderContainerSongs("folder_$key", list) }
+                                onReorderFolderSongs = { key, list -> viewModel.reorderContainerSongs("folder_$key", list) },
+                                reduceAnimations = appSettings.reduceAnimations
                             )
                         }
 

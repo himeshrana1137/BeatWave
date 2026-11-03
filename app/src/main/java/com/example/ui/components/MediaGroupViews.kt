@@ -1,6 +1,11 @@
 package com.example.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,7 +86,7 @@ fun AlbumsGridView(
     }
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
+        columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -107,18 +112,18 @@ fun AlbumCard(
     Box(
         modifier = modifier
             .testTag("album_card_${album.title}")
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(SurfaceDark)
-            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(
                         Brush.linearGradient(listOf(SurfaceHighlightDark, Color(0xFF1E2235)))
                     ),
@@ -134,8 +139,8 @@ fun AlbumCard(
                     onClick = onPlayClick,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .size(38.dp)
+                        .padding(6.dp)
+                        .size(34.dp)
                         .minimumInteractiveComponentSize()
                         .clip(CircleShape)
                         .background(PrimaryNeon)
@@ -144,12 +149,12 @@ fun AlbumCard(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Play Album",
                         tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = album.title,
@@ -161,8 +166,12 @@ fun AlbumCard(
                 overflow = TextOverflow.Ellipsis
             )
 
+            val displayArtist = if (album.artist.isBlank() || album.artist.equals("Unknown Artist", ignoreCase = true)) {
+                album.songs.firstOrNull()?.displayArtist ?: "Album"
+            } else album.artist
+
             Text(
-                text = album.artist,
+                text = displayArtist,
                 style = MaterialTheme.typography.bodySmall.copy(
                     color = SecondaryCyan
                 ),
@@ -391,6 +400,7 @@ fun GroupDetailHeader(
     onBack: () -> Unit,
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
+    isCollapsed: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBack() }
@@ -398,7 +408,7 @@ fun GroupDetailHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -421,7 +431,7 @@ fun GroupDetailHeader(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge.copy(
@@ -431,57 +441,105 @@ fun GroupDetailHeader(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = SecondaryCyan
+                if (!isCollapsed) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = SecondaryCyan
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                )
+                }
+            }
+
+            if (isCollapsed && songs.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    IconButton(
+                        onClick = onPlayAll,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryNeon)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play All",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onShuffle,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(SurfaceHighlightDark)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = SecondaryCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Play All and Shuffle action buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        AnimatedVisibility(
+            visible = !isCollapsed,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
         ) {
-            Button(
-                onClick = onPlayAll,
-                enabled = songs.isNotEmpty(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryNeon),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Play All", fontWeight = FontWeight.Bold, color = Color.White)
-            }
+            Column {
+                Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedButton(
-                onClick = onShuffle,
-                enabled = songs.isNotEmpty(),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Shuffle,
-                    contentDescription = null,
-                    tint = SecondaryCyan,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Shuffle", fontWeight = FontWeight.SemiBold, color = SecondaryCyan)
+                // Play All and Shuffle action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onPlayAll,
+                        enabled = songs.isNotEmpty(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryNeon),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Play All", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    OutlinedButton(
+                        onClick = onShuffle,
+                        enabled = songs.isNotEmpty(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = null,
+                            tint = SecondaryCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Shuffle", fontWeight = FontWeight.SemiBold, color = SecondaryCyan)
+                    }
+                }
             }
         }
     }

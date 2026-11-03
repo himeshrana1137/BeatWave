@@ -37,7 +37,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,6 +49,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,97 +93,212 @@ fun SongItemCard(
     onMoveDown: (() -> Unit)? = null,
     onMoveToTop: (() -> Unit)? = null,
     onMoveToBottom: (() -> Unit)? = null,
+    reduceAnimations: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 68.dp.toPx() }
+    val maxSwipePx = with(density) { 130.dp.toPx() }
+
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
+
+    val animatedOffsetX by animateFloatAsState(
+        targetValue = dragOffsetX,
+        animationSpec = if (reduceAnimations) tween(0) else tween(140),
+        label = "swipe_offset"
+    )
+
     val containerColor = if (isCurrent) SurfaceHighlightDark else SurfaceDark.copy(alpha = 0.6f)
     val borderColor = if (isCurrent) PrimaryViolet.copy(alpha = 0.7f) else CardBorder.copy(alpha = 0.3f)
 
-    Row(
+    Box(
         modifier = modifier
             .testTag("song_item_${song.id}")
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(containerColor)
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-            .clickable { onSongClick(song) }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Thumbnail with playing indicator
-        Box(contentAlignment = Alignment.BottomEnd) {
-            AlbumArtThumbnail(
-                song = song,
-                size = 50.dp,
-                shapeRadius = 10.dp
-            )
-            if (isCurrent) {
-                Box(
-                    modifier = Modifier
-                        .padding(2.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.75f))
-                        .padding(horizontal = 3.dp, vertical = 2.dp)
-                ) {
-                    MiniEqualizerBars(
-                        isPlaying = isPlaying,
-                        color = PrimaryViolet
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Title and Artist
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 15.sp,
-                    color = if (isCurrent) PrimaryViolet else TextPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+        // Swipe Background Action Indicators
+        if (animatedOffsetX > 8f && onPlayNext != null) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(SecondaryCyan.copy(alpha = 0.25f))
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                if (showQualityBadges) {
-                    val quality = remember(song.id) {
-                        com.example.util.MediaQualityManager.getAudioQualitySync(song)
-                    }
-                    AudioQualityBadge(quality = quality, compact = true)
-                }
-                Text(
-                    text = song.artist,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                Text(
-                    text = "•",
-                    style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
-                )
-                Text(
-                    text = song.formattedDuration,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = TextMuted,
-                        fontSize = 12.sp
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlaylistPlay,
+                        contentDescription = "Play Next",
+                        tint = SecondaryCyan,
+                        modifier = Modifier.size(24.dp)
                     )
-                )
+                    Text(
+                        text = "Play Next",
+                        color = SecondaryCyan,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        } else if (animatedOffsetX < -8f && onAddToQueue != null) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(PrimaryViolet.copy(alpha = 0.28f))
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Add to Queue",
+                        color = PrimaryViolet,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Icon(
+                        imageVector = Icons.Default.QueueMusic,
+                        contentDescription = "Add to Queue",
+                        tint = PrimaryViolet,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
+
+        // Foreground Card Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationX = animatedOffsetX }
+                .clip(RoundedCornerShape(12.dp))
+                .background(containerColor)
+                .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+                .pointerInput(song.id, onPlayNext, onAddToQueue) {
+                    if (onPlayNext != null || onAddToQueue != null) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                if (dragOffsetX > swipeThresholdPx && onPlayNext != null) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onPlayNext.invoke(song)
+                                } else if (dragOffsetX < -swipeThresholdPx && onAddToQueue != null) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onAddToQueue.invoke(song)
+                                }
+                                dragOffsetX = 0f
+                            },
+                            onDragCancel = {
+                                dragOffsetX = 0f
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffsetX = (dragOffsetX + dragAmount).coerceIn(-maxSwipePx, maxSwipePx)
+                            }
+                        )
+                    }
+                }
+                .clickable { onSongClick(song) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Thumbnail with playing indicator
+            Box(contentAlignment = Alignment.BottomEnd) {
+                AlbumArtThumbnail(
+                    song = song,
+                    size = 50.dp,
+                    shapeRadius = 10.dp
+                )
+                if (isCurrent) {
+                    Box(
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .padding(horizontal = 3.dp, vertical = 2.dp)
+                    ) {
+                        MiniEqualizerBars(
+                            isPlaying = isPlaying,
+                            color = PrimaryViolet,
+                            reduceAnimations = reduceAnimations
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Title and Artist
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = song.displayTitle,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 15.sp,
+                            color = if (isCurrent) PrimaryViolet else TextPrimary
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    if (isCurrent) {
+                        MiniEqualizerBars(
+                            isPlaying = isPlaying,
+                            color = PrimaryViolet,
+                            reduceAnimations = reduceAnimations
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (showQualityBadges) {
+                        val quality = remember(song.id) {
+                            com.example.util.MediaQualityManager.getAudioQualitySync(song)
+                        }
+                        AudioQualityBadge(quality = quality, compact = true)
+                    }
+                    Text(
+                        text = song.displayArtist,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
+                    )
+                    Text(
+                        text = song.formattedDuration,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
+            }
 
         // Favorite Button
         IconButton(
@@ -410,4 +534,5 @@ fun SongItemCard(
             }
         }
     }
+}
 }

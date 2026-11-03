@@ -24,18 +24,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,6 +93,8 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenWrapped: () -> Unit = {},
     onOpenAchievements: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    autoScanEnabled: Boolean = true,
     showQualityBadges: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -123,6 +132,8 @@ fun HomeScreen(
         songs.filter { it.isFavorite }.take(10)
     }
 
+    var overflowMenuExpanded by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = modifier
             .testTag("home_screen")
@@ -130,7 +141,7 @@ fun HomeScreen(
         contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        // Top App Bar & Brand Actions
+        // Top App Bar: Brand Logo, Search icon, Settings icon, Overflow (⋮) Menu
         item {
             Row(
                 modifier = Modifier
@@ -143,56 +154,22 @@ fun HomeScreen(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     IconButton(
-                        onClick = onScanMedia,
+                        onClick = onSearchClick,
                         modifier = Modifier
-                            .testTag("home_scan_button")
+                            .testTag("home_search_button")
                             .minimumInteractiveComponentSize()
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(SurfaceDark)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Scan Media",
-                            tint = PrimaryViolet,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onDemoTracks,
-                        modifier = Modifier
-                            .testTag("home_demo_button")
-                            .minimumInteractiveComponentSize()
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(SurfaceDark)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Demo Tracks",
-                            tint = SecondaryAccent,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onOpenEqualizer,
-                        modifier = Modifier
-                            .testTag("home_equalizer_button")
-                            .minimumInteractiveComponentSize()
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(SurfaceDark)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Equalizer,
-                            contentDescription = "Equalizer",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
@@ -209,8 +186,126 @@ fun HomeScreen(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
                             tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(19.dp)
                         )
+                    }
+
+                    Box {
+                        IconButton(
+                            onClick = { overflowMenuExpanded = true },
+                            modifier = Modifier
+                                .testTag("home_overflow_button")
+                                .minimumInteractiveComponentSize()
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceDark)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = overflowMenuExpanded,
+                            onDismissRequest = { overflowMenuExpanded = false },
+                            modifier = Modifier.background(SurfaceHighlightDark)
+                        ) {
+                            if (autoScanEnabled) {
+                                DropdownMenuItem(
+                                    text = { Text("Add Songs / Files", color = TextPrimary) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = null,
+                                            tint = PrimaryViolet,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        overflowMenuExpanded = false
+                                        onAddSongs()
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Scan / Refresh Media", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        tint = SecondaryCyan,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    overflowMenuExpanded = false
+                                    onScanMedia()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("BeatWave Wrapped", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Celebration,
+                                        contentDescription = null,
+                                        tint = PrimaryViolet,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    overflowMenuExpanded = false
+                                    onOpenWrapped()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Stats & Achievements", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.EmojiEvents,
+                                        contentDescription = null,
+                                        tint = SecondaryAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    overflowMenuExpanded = false
+                                    onOpenAchievements()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Equalizer", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Equalizer,
+                                        contentDescription = null,
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    overflowMenuExpanded = false
+                                    onOpenEqualizer()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Demo Tracks", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = SecondaryAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    overflowMenuExpanded = false
+                                    onDemoTracks()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -234,23 +329,25 @@ fun HomeScreen(
                     )
                 )
 
-                Button(
-                    onClick = onAddSongs,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryViolet,
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                if (!autoScanEnabled) {
+                    Button(
+                        onClick = onAddSongs,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryViolet,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
@@ -560,7 +657,7 @@ fun SpotifyQuickCard(
         Spacer(modifier = Modifier.width(10.dp))
 
         Text(
-            text = song.title,
+            text = song.displayTitle,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                 fontSize = 13.sp,
@@ -691,7 +788,7 @@ fun HomeSongCard(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = song.title,
+            text = song.displayTitle,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
@@ -712,7 +809,7 @@ fun HomeSongCard(
                 AudioQualityBadge(quality = quality, compact = true)
             }
             Text(
-                text = song.artist,
+                text = song.displayArtist,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.sp,
                     color = TextSecondary

@@ -198,13 +198,35 @@ fun MiniEqualizerBars(
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
     barCount: Int = 3,
-    color: Color = PrimaryViolet
+    color: Color = PrimaryViolet,
+    reduceAnimations: Boolean = false
 ) {
+    if (reduceAnimations || !isPlaying) {
+        Row(
+            modifier = modifier.height(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            val staticHeights = listOf(0.4f, 0.9f, 0.6f)
+            for (i in 0 until barCount) {
+                val h = if (isPlaying) staticHeights[i % staticHeights.size] else 0.25f
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height((16 * h).dp.coerceAtLeast(3.dp))
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(color)
+                )
+            }
+        }
+        return
+    }
+
     val transition = rememberInfiniteTransition(label = "equalizer")
 
     val bar1Height by transition.animateFloat(
         initialValue = 0.2f,
-        targetValue = if (isPlaying) 1f else 0.2f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
