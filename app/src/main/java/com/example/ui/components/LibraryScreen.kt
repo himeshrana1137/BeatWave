@@ -147,7 +147,7 @@ fun LibraryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -155,7 +155,7 @@ fun LibraryScreen(
                     text = "Your Library",
                     style = MaterialTheme.typography.displayMedium.copy(
                         fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                 )
@@ -183,7 +183,7 @@ fun LibraryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 LibraryFilterChip(
@@ -627,7 +627,7 @@ fun LibraryScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                                .padding(horizontal = 20.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -744,7 +744,7 @@ fun LibraryScreen(
                         } else {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 120.dp),
+                                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(songs, key = { it.id }) { song ->
@@ -788,18 +788,13 @@ fun LibraryFilterChip(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(if (isSelected) PrimaryViolet else SurfaceVariantDark)
-            .border(
-                1.dp,
-                if (isSelected) PrimaryViolet else Color(0x228B5CF6),
-                RoundedCornerShape(20.dp)
-            )
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 7.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = FontWeight.Medium,
                 color = if (isSelected) Color.White else TextSecondary,
                 fontSize = 13.sp
             )

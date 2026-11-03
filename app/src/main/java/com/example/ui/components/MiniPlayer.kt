@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.PlaybackSnapshot
 import com.example.model.Song
 import com.example.ui.theme.AccentPink
+import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceVariantDark
@@ -68,19 +70,24 @@ fun MiniPlayer(
         modifier = modifier
             .testTag("mini_player")
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .shadow(12.dp, RoundedCornerShape(14.dp), spotColor = PrimaryViolet.copy(alpha = 0.35f))
-            .clip(RoundedCornerShape(14.dp))
-            .background(SurfaceDark)
-            .border(1.dp, Color(0x338B5CF6), RoundedCornerShape(14.dp))
+            .height(64.dp)
+            .padding(horizontal = 12.dp)
+            .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = Color.Black.copy(alpha = 0.45f))
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceVariantDark)
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
             .clickable { onExpand() }
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
             // Main Content Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .weight(1f)
+                    .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Album Art (with placeholder gradient if no art)
@@ -190,9 +197,9 @@ fun MiniPlayer(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.5.dp),
+                    .height(2.dp),
                 color = PrimaryViolet,
-                trackColor = SurfaceVariantDark
+                trackColor = Color(0x14FFFFFF)
             )
         }
     }

@@ -21,8 +21,6 @@ import com.example.model.NavigationTab
 import com.example.model.PlaybackSnapshot
 import com.example.model.Playlist
 import com.example.model.Song
-import com.example.model.displayTitle
-import com.example.model.displayArtist
 import com.example.model.SongDetailedInfo
 import com.example.model.AudioQualityFilter
 import com.example.model.AudioQualityTier

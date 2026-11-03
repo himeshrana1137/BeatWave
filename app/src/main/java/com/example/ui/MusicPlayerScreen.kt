@@ -27,9 +27,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -235,89 +239,93 @@ fun MusicPlayerScreen(
                         )
                     }
 
-                    // Modern Spotify-style Bottom Navigation Bar
+                    // Refined Premium Bottom Navigation Bar
                     NavigationBar(
-                        containerColor = SurfaceDark,
+                        containerColor = SurfaceDark.copy(alpha = 0.95f),
                         contentColor = TextPrimary,
-                        tonalElevation = 6.dp,
+                        tonalElevation = 0.dp,
                         modifier = Modifier.testTag("main_bottom_nav")
                     ) {
+                        val isHome = mainBottomTab == MainBottomTab.HOME
                         NavigationBarItem(
-                            selected = mainBottomTab == MainBottomTab.HOME,
+                            selected = isHome,
                             onClick = { viewModel.setMainBottomTab(MainBottomTab.HOME) },
                             icon = {
                                 Icon(
-                                    imageVector = Icons.Default.Home,
+                                    imageVector = if (isHome) Icons.Default.Home else Icons.Outlined.Home,
                                     contentDescription = "Home"
                                 )
                             },
-                            label = { Text("Home", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                            label = { Text("Home", fontSize = 11.sp, fontWeight = if (isHome) FontWeight.SemiBold else FontWeight.Medium) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = PrimaryViolet,
                                 selectedTextColor = PrimaryViolet,
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary,
-                                indicatorColor = SurfaceVariantDark
+                                indicatorColor = Color.Transparent
                             ),
                             modifier = Modifier.testTag("bottom_tab_home")
                         )
 
+                        val isSearch = mainBottomTab == MainBottomTab.SEARCH
                         NavigationBarItem(
-                            selected = mainBottomTab == MainBottomTab.SEARCH,
+                            selected = isSearch,
                             onClick = { viewModel.setMainBottomTab(MainBottomTab.SEARCH) },
                             icon = {
                                 Icon(
-                                    imageVector = Icons.Default.Search,
+                                    imageVector = if (isSearch) Icons.Default.Search else Icons.Outlined.Search,
                                     contentDescription = "Search"
                                 )
                             },
-                            label = { Text("Search", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                            label = { Text("Search", fontSize = 11.sp, fontWeight = if (isSearch) FontWeight.SemiBold else FontWeight.Medium) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = PrimaryViolet,
                                 selectedTextColor = PrimaryViolet,
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary,
-                                indicatorColor = SurfaceVariantDark
+                                indicatorColor = Color.Transparent
                             ),
                             modifier = Modifier.testTag("bottom_tab_search")
                         )
 
+                        val isLibrary = mainBottomTab == MainBottomTab.LIBRARY
                         NavigationBarItem(
-                            selected = mainBottomTab == MainBottomTab.LIBRARY,
+                            selected = isLibrary,
                             onClick = { viewModel.setMainBottomTab(MainBottomTab.LIBRARY) },
                             icon = {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                    imageVector = if (isLibrary) Icons.AutoMirrored.Filled.QueueMusic else Icons.AutoMirrored.Outlined.QueueMusic,
                                     contentDescription = "Library"
                                 )
                             },
-                            label = { Text("Library", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                            label = { Text("Library", fontSize = 11.sp, fontWeight = if (isLibrary) FontWeight.SemiBold else FontWeight.Medium) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = PrimaryViolet,
                                 selectedTextColor = PrimaryViolet,
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary,
-                                indicatorColor = SurfaceVariantDark
+                                indicatorColor = Color.Transparent
                             ),
                             modifier = Modifier.testTag("bottom_tab_library")
                         )
 
+                        val isVideos = mainBottomTab == MainBottomTab.VIDEOS
                         NavigationBarItem(
-                            selected = mainBottomTab == MainBottomTab.VIDEOS,
+                            selected = isVideos,
                             onClick = { viewModel.setMainBottomTab(MainBottomTab.VIDEOS) },
                             icon = {
                                 Icon(
-                                    imageVector = Icons.Default.Videocam,
+                                    imageVector = if (isVideos) Icons.Default.Videocam else Icons.Outlined.Videocam,
                                     contentDescription = "Videos"
                                 )
                             },
-                            label = { Text("Videos", fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                            label = { Text("Videos", fontSize = 11.sp, fontWeight = if (isVideos) FontWeight.SemiBold else FontWeight.Medium) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = PrimaryViolet,
                                 selectedTextColor = PrimaryViolet,
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary,
-                                indicatorColor = SurfaceVariantDark
+                                indicatorColor = Color.Transparent
                             ),
                             modifier = Modifier.testTag("bottom_tab_videos")
                         )
@@ -465,6 +473,13 @@ fun MusicPlayerScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // Back Handler to collapse full-screen player
+        if (isFullScreenOpen) {
+            BackHandler {
+                viewModel.setFullScreenPlayerOpen(false)
             }
         }
 

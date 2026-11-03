@@ -62,6 +62,7 @@ import com.example.model.Song
 import com.example.ui.theme.AccentPink
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryNeon
+import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryCyan
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
@@ -87,9 +88,9 @@ fun AlbumsGridView(
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier.fillMaxSize()
     ) {
         items(albums, key = { it.title + it.artist }) { album ->
@@ -109,85 +110,71 @@ fun AlbumCard(
     onPlayClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Column(
         modifier = modifier
             .testTag("album_card_${album.title}")
-            .clip(RoundedCornerShape(14.dp))
-            .background(SurfaceDark)
-            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(10.dp)
     ) {
-        Column {
-            Box(
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            AlbumArtThumbnail(
+                song = album.songs.firstOrNull(),
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Small 32dp Quick Play button
+            IconButton(
+                onClick = onPlayClick,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        Brush.linearGradient(listOf(SurfaceHighlightDark, Color(0xFF1E2235)))
-                    ),
-                contentAlignment = Alignment.Center
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .size(32.dp)
+                    .minimumInteractiveComponentSize()
+                    .clip(CircleShape)
+                    .background(PrimaryViolet)
             ) {
-                AlbumArtThumbnail(
-                    song = album.songs.firstOrNull(),
-                    modifier = Modifier.fillMaxSize()
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play Album",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
                 )
-
-                // Quick Play button
-                IconButton(
-                    onClick = onPlayClick,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp)
-                        .size(34.dp)
-                        .minimumInteractiveComponentSize()
-                        .clip(CircleShape)
-                        .background(PrimaryNeon)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play Album",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = album.title,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            val displayArtist = if (album.artist.isBlank() || album.artist.equals("Unknown Artist", ignoreCase = true)) {
-                album.songs.firstOrNull()?.displayArtist ?: "Album"
-            } else album.artist
-
-            Text(
-                text = displayArtist,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = SecondaryCyan
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = "${album.songCount} ${if (album.songCount == 1) "track" else "tracks"}",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color = TextMuted
-                )
-            )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = album.title,
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                color = TextPrimary
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        val displayArtist = if (album.artist.isBlank() || album.artist.equals("Unknown Artist", ignoreCase = true)) {
+            album.songs.firstOrNull()?.displayArtist ?: "Album"
+        } else album.artist
+
+        Text(
+            text = "$displayArtist • ${album.songCount} ${if (album.songCount == 1) "track" else "tracks"}",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = TextSecondary,
+                fontSize = 12.sp
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -208,7 +195,7 @@ fun ArtistsListView(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier.fillMaxSize()
     ) {
@@ -229,15 +216,15 @@ fun ArtistsListView(
                         .size(54.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(listOf(SecondaryCyan, AccentPink))
+                            Brush.linearGradient(listOf(Color(0xFF2C1924), Color(0xFF1E1119)))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(26.dp)
                     )
                 }
 
@@ -247,8 +234,9 @@ fun ArtistsListView(
                     Text(
                         text = artist.name,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary,
+                            fontSize = 15.sp
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -256,7 +244,8 @@ fun ArtistsListView(
                     Text(
                         text = "${artist.songCount} tracks • ${artist.albumCount} ${if (artist.albumCount == 1) "album" else "albums"}",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextMuted
+                            color = TextSecondary,
+                            fontSize = 12.sp
                         )
                     )
                 }
@@ -272,7 +261,7 @@ fun ArtistsListView(
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Play Artist",
-                        tint = PrimaryNeon,
+                        tint = PrimaryViolet,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -298,7 +287,7 @@ fun FoldersListView(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier.fillMaxSize()
     ) {
@@ -319,15 +308,15 @@ fun FoldersListView(
                         .size(50.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            Brush.linearGradient(listOf(Color(0xFF2C3E50), Color(0xFF3498DB)))
+                            Brush.linearGradient(listOf(Color(0xFF1B1E32), Color(0xFF121422)))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Folder,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 

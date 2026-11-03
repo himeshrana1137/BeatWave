@@ -65,6 +65,7 @@ import com.example.model.Playlist
 import com.example.model.Song
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryNeon
+import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryCyan
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
@@ -507,7 +508,7 @@ fun PlaylistsView(
                         .testTag("create_playlist_button")
                         .height(38.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryNeon,
+                        containerColor = PrimaryViolet,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(10.dp),
@@ -525,7 +526,7 @@ fun PlaylistsView(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(playlists, key = { it.id }) { playlist ->
@@ -564,7 +565,7 @@ private fun PlaylistCard(
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     Brush.linearGradient(
-                        listOf(PrimaryNeon.copy(alpha = 0.5f), SecondaryCyan.copy(alpha = 0.5f))
+                        listOf(Color(0xFF231C33), Color(0xFF171223))
                     )
                 ),
             contentAlignment = Alignment.Center

@@ -57,8 +57,6 @@ import androidx.compose.ui.unit.sp
 import com.example.data.MusicRepository
 import com.example.model.NavigationTab
 import com.example.model.Song
-import com.example.model.displayArtist
-import com.example.model.displayTitle
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryNeon
 import com.example.ui.theme.PrimaryViolet
@@ -110,10 +108,10 @@ fun SearchScreen(
             text = "Search",
             style = MaterialTheme.typography.displayMedium.copy(
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = TextPrimary
             ),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         )
 
         // Search Bar Input (Live Search while typing)
@@ -123,7 +121,7 @@ fun SearchScreen(
             modifier = Modifier
                 .testTag("search_text_field")
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+                .padding(horizontal = 20.dp, vertical = 6.dp),
             placeholder = {
                 Text(
                     text = "What do you want to listen to?",
@@ -136,7 +134,7 @@ fun SearchScreen(
                     imageVector = Icons.Default.Search,
                     contentDescription = "Search",
                     tint = if (searchQuery.isNotBlank()) PrimaryViolet else TextSecondary,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             },
             trailingIcon = {
@@ -146,7 +144,7 @@ fun SearchScreen(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear search",
                             tint = TextSecondary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -156,7 +154,7 @@ fun SearchScreen(
                 focusedContainerColor = SurfaceVariantDark,
                 unfocusedContainerColor = SurfaceDark,
                 focusedBorderColor = PrimaryViolet,
-                unfocusedBorderColor = Color(0x338B5CF6),
+                unfocusedBorderColor = CardBorder,
                 focusedTextColor = TextPrimary,
                 unfocusedTextColor = TextPrimary,
                 cursorColor = PrimaryViolet
@@ -178,7 +176,7 @@ fun SearchScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 20.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -188,9 +186,9 @@ fun SearchScreen(
                                 Text(
                                     text = "Recent searches",
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = TextPrimary,
-                                        fontSize = 16.sp
+                                        fontSize = 18.sp
                                     )
                                 )
                                 TextButton(
@@ -204,7 +202,7 @@ fun SearchScreen(
                                         text = "Clear",
                                         color = PrimaryViolet,
                                         fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
@@ -220,7 +218,7 @@ fun SearchScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(20.dp))
-                                            .background(SurfaceHighlightDark)
+                                            .background(SurfaceVariantDark)
                                             .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
                                             .clickable { onSearchQueryChange(queryItem) }
                                             .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
@@ -265,15 +263,16 @@ fun SearchScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 20.dp)
                     ) {
                         Text(
                             text = "Browse all",
                             style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary,
+                                fontSize = 18.sp
                             ),
-                            modifier = Modifier.padding(bottom = 10.dp)
+                            modifier = Modifier.padding(bottom = 12.dp)
                         )
 
                         Row(
@@ -284,7 +283,7 @@ fun SearchScreen(
                                 title = "Songs",
                                 subtitle = "${allSongs.size} tracks",
                                 icon = Icons.Default.MusicNote,
-                                gradient = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
+                                gradient = listOf(Color(0xFF231C33), Color(0xFF171223)),
                                 onClick = { onCategoryClick(NavigationTab.SONGS) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -293,7 +292,7 @@ fun SearchScreen(
                                 title = "Albums",
                                 subtitle = "Full collections",
                                 icon = Icons.Default.Album,
-                                gradient = listOf(Color(0xFF06B6D4), Color(0xFF0E7490)),
+                                gradient = listOf(Color(0xFF13222E), Color(0xFF0D1720)),
                                 onClick = { onCategoryClick(NavigationTab.ALBUMS) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -309,7 +308,7 @@ fun SearchScreen(
                                 title = "Artists",
                                 subtitle = "Performers & bands",
                                 icon = Icons.Default.Person,
-                                gradient = listOf(Color(0xFFEC4899), Color(0xFFBE185D)),
+                                gradient = listOf(Color(0xFF2C1924), Color(0xFF1E1119)),
                                 onClick = { onCategoryClick(NavigationTab.ARTISTS) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -318,7 +317,7 @@ fun SearchScreen(
                                 title = "Folders",
                                 subtitle = "Device storage",
                                 icon = Icons.Default.Folder,
-                                gradient = listOf(Color(0xFF6366F1), Color(0xFF4338CA)),
+                                gradient = listOf(Color(0xFF1B1E32), Color(0xFF121422)),
                                 onClick = { onCategoryClick(NavigationTab.FOLDERS) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -332,16 +331,16 @@ fun SearchScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 20.dp)
                         ) {
                             Text(
                                 text = "Recently played",
                                 style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = TextPrimary,
-                                    fontSize = 17.sp
+                                    fontSize = 18.sp
                                 ),
-                                modifier = Modifier.padding(bottom = 10.dp)
+                                modifier = Modifier.padding(bottom = 12.dp)
                             )
 
                             LazyRow(
@@ -379,8 +378,8 @@ fun SearchScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     MiniEqualizerBars(
-                                                        isAnimating = true,
-                                                        color = PrimaryNeon,
+                                                        isPlaying = isPlaying,
+                                                        color = PrimaryViolet,
                                                         modifier = Modifier.size(24.dp),
                                                         reduceAnimations = reduceAnimations
                                                     )
@@ -514,6 +513,7 @@ fun CategoryBrowseCard(
             .height(100.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Brush.linearGradient(gradient))
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .padding(12.dp)
     ) {
@@ -524,7 +524,7 @@ fun CategoryBrowseCard(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                     fontSize = 17.sp
                 )

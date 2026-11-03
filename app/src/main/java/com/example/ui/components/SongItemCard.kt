@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -67,6 +68,7 @@ import com.example.ui.theme.SecondaryAccent
 import com.example.ui.theme.SecondaryCyan
 import com.example.ui.theme.SurfaceDark
 import com.example.ui.theme.SurfaceHighlightDark
+import com.example.ui.theme.SurfaceVariantDark
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -111,21 +113,21 @@ fun SongItemCard(
         label = "swipe_offset"
     )
 
-    val containerColor = if (isCurrent) SurfaceHighlightDark else SurfaceDark.copy(alpha = 0.6f)
-    val borderColor = if (isCurrent) PrimaryViolet.copy(alpha = 0.7f) else CardBorder.copy(alpha = 0.3f)
+    val containerColor = if (isCurrent) SurfaceVariantDark.copy(alpha = 0.65f) else Color.Transparent
 
     Box(
         modifier = modifier
             .testTag("song_item_${song.id}")
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .height(68.dp)
+            .clip(RoundedCornerShape(8.dp))
     ) {
         // Swipe Background Action Indicators
         if (animatedOffsetX > 8f && onPlayNext != null) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(SecondaryCyan.copy(alpha = 0.25f))
+                    .background(PrimaryViolet.copy(alpha = 0.15f))
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -136,13 +138,13 @@ fun SongItemCard(
                     Icon(
                         imageVector = Icons.Default.PlaylistPlay,
                         contentDescription = "Play Next",
-                        tint = SecondaryCyan,
-                        modifier = Modifier.size(24.dp)
+                        tint = PrimaryViolet,
+                        modifier = Modifier.size(22.dp)
                     )
                     Text(
                         text = "Play Next",
-                        color = SecondaryCyan,
-                        fontWeight = FontWeight.Bold,
+                        color = PrimaryViolet,
+                        fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     )
                 }
@@ -151,7 +153,7 @@ fun SongItemCard(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(PrimaryViolet.copy(alpha = 0.28f))
+                    .background(PrimaryViolet.copy(alpha = 0.15f))
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
@@ -162,27 +164,27 @@ fun SongItemCard(
                     Text(
                         text = "Add to Queue",
                         color = PrimaryViolet,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     )
                     Icon(
                         imageVector = Icons.Default.QueueMusic,
                         contentDescription = "Add to Queue",
                         tint = PrimaryViolet,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
         }
 
-        // Foreground Card Row
+        // Foreground Song Row (No Card Background, No Border)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(68.dp)
                 .graphicsLayer { translationX = animatedOffsetX }
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(containerColor)
-                .border(1.dp, borderColor, RoundedCornerShape(12.dp))
                 .pointerInput(song.id, onPlayNext, onAddToQueue) {
                     if (onPlayNext != null || onAddToQueue != null) {
                         detectHorizontalDragGestures(
@@ -207,23 +209,24 @@ fun SongItemCard(
                     }
                 }
                 .clickable { onSongClick(song) }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail with playing indicator
+            // Thumbnail with playing indicator (art 52dp, corner radius 8dp)
             Box(contentAlignment = Alignment.BottomEnd) {
                 AlbumArtThumbnail(
                     song = song,
-                    size = 50.dp,
-                    shapeRadius = 10.dp
+                    size = 52.dp,
+                    shapeRadius = 8.dp,
+                    reduceAnimations = reduceAnimations
                 )
                 if (isCurrent) {
                     Box(
                         modifier = Modifier
                             .padding(2.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(3.dp))
                             .background(Color.Black.copy(alpha = 0.75f))
-                            .padding(horizontal = 3.dp, vertical = 2.dp)
+                            .padding(horizontal = 2.5.dp, vertical = 1.5.dp)
                     ) {
                         MiniEqualizerBars(
                             isPlaying = isPlaying,
@@ -248,8 +251,8 @@ fun SongItemCard(
                     Text(
                         text = song.displayTitle,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
                             color = if (isCurrent) PrimaryViolet else TextPrimary
                         ),
                         maxLines = 1,
@@ -280,7 +283,7 @@ fun SongItemCard(
                         text = song.displayArtist,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = TextSecondary,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

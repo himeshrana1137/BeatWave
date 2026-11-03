@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -37,11 +38,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.model.Song
+import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.PrimaryVioletLight
 import com.example.ui.theme.SecondaryAccent
@@ -52,25 +55,24 @@ import java.io.File
 import kotlin.math.abs
 
 /**
- * Returns a list of gradient colors for songs without album art.
- * Distinct combinations based on song seed so each track has visual personality.
+ * Returns a list of deep, dark, muted gradient colors for songs without album art.
+ * Generated from the song title hash with low saturation and deep tones.
  */
 fun getPlaceholderGradient(songSeed: String?): List<Color> {
-    val seed = abs(songSeed.hashCode())
+    val seed = abs(songSeed?.hashCode() ?: 0)
     val palettes = listOf(
-        listOf(Color(0xFF8B5CF6), Color(0xFF4C1D95)), // Electric Violet to Deep Indigo
-        listOf(Color(0xFF7C3AED), Color(0xFF1E1B4B)), // Vivid Purple to Midnight
-        listOf(Color(0xFF06B6D4), Color(0xFF164E63)), // Cyan to Dark Ocean
-        listOf(Color(0xFFEC4899), Color(0xFF831843)), // Hot Pink to Deep Berry
-        listOf(Color(0xFFA855F7), Color(0xFF3B0764)), // Violet to Dark Violet
-        listOf(Color(0xFF6366F1), Color(0xFF312E81))  // Indigo to Midnight Blue
+        listOf(Color(0xFF1E1E28), Color(0xFF14141B)), // Deep Charcoal Slate
+        listOf(Color(0xFF221E2C), Color(0xFF14121C)), // Muted Deep Violet / Night
+        listOf(Color(0xFF18222A), Color(0xFF10161C)), // Muted Deep Cyan Slate
+        listOf(Color(0xFF251C22), Color(0xFF151013)), // Muted Deep Plum
+        listOf(Color(0xFF1A2222), Color(0xFF101616)), // Muted Deep Forest
+        listOf(Color(0xFF24201C), Color(0xFF151310))  // Muted Warm Charcoal
     )
     return palettes[seed % palettes.size]
 }
 
 /**
- * Computes a dominant color from album art bitmap, or falls back to song-seeded vibrant color.
- * Uses AlbumArtLoader so color matches the real loaded cover art.
+ * Computes a dominant color from album art bitmap, or falls back to song-seeded deep color.
  */
 @Composable
 fun rememberDominantColor(song: Song?): Color {
@@ -93,66 +95,80 @@ fun rememberDominantColor(song: Song?): Color {
 
 @Composable
 fun AlbumArtThumbnail(
-    song: Song?,
+    song: Song? = null,
+    artPath: String? = null,
+    title: String? = null,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
-    shapeRadius: Dp = 10.dp,
-    isRound: Boolean = false
+    shapeRadius: Dp = 8.dp,
+    isRound: Boolean = false,
+    reduceAnimations: Boolean = false
 ) {
     val context = LocalContext.current
     val targetPx = if (size > 140.dp) AlbumArtLoader.SIZE_FULL else AlbumArtLoader.SIZE_THUMBNAIL
+    val effectiveKey = song?.id ?: artPath ?: title
 
     // Synchronously check memory cache first so there's zero flicker for cached images
-    var bitmap by remember(song?.id, targetPx) {
+    var bitmap by remember(effectiveKey, targetPx) {
         mutableStateOf(AlbumArtLoader.getCachedArt(song?.id, targetPx))
     }
 
-    LaunchedEffect(song?.id, targetPx) {
-        if (song == null) {
+    LaunchedEffect(effectiveKey, targetPx) {
+        if (song != null) {
+            if (bitmap == null) {
+                bitmap = AlbumArtLoader.loadArt(context, song, targetPx)
+            }
+        } else if (!artPath.isNullOrBlank()) {
+            if (bitmap == null) {
+                try {
+                    val file = File(artPath)
+                    if (file.exists()) {
+                        bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                    }
+                } catch (_: Exception) {}
+            }
+        } else {
             bitmap = null
-            return@LaunchedEffect
-        }
-        if (bitmap == null) {
-            val loaded = AlbumArtLoader.loadArt(context, song, targetPx)
-            bitmap = loaded
         }
     }
 
     val shape = if (isRound) CircleShape else RoundedCornerShape(shapeRadius)
-    val placeholderColors = remember(song?.title) { getPlaceholderGradient(song?.title) }
+    val displaySeed = song?.title ?: title ?: song?.album ?: "Music"
+    val placeholderColors = remember(displaySeed) { getPlaceholderGradient(displaySeed) }
+
+    val currentBitmap = bitmap
+    val crossfadeAlpha by animateFloatAsState(
+        targetValue = if (currentBitmap != null) 1f else 0f,
+        animationSpec = if (reduceAnimations) tween(0) else tween(durationMillis = 150),
+        label = "art_crossfade"
+    )
 
     Box(
         modifier = modifier
             .size(size)
             .clip(shape)
             .background(Brush.linearGradient(placeholderColors))
-            .border(1.dp, Color(0x338B5CF6), shape),
+            .border(1.dp, CardBorder, shape),
         contentAlignment = Alignment.Center
     ) {
-        val currentBitmap = bitmap
+        // Refined muted placeholder: small, low-opacity music note icon (~30% of tile size)
+        Icon(
+            imageVector = Icons.Default.MusicNote,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.28f),
+            modifier = Modifier.size(size * 0.30f)
+        )
+
+        // Loaded bitmap with soft 150ms crossfade
         if (currentBitmap != null && !currentBitmap.isRecycled) {
             Image(
                 bitmap = currentBitmap.asImageBitmap(),
-                contentDescription = "${song?.title} Album Artwork",
-                modifier = Modifier.fillMaxSize(),
+                contentDescription = "${song?.title ?: title} Album Artwork",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = crossfadeAlpha },
                 contentScale = ContentScale.Crop
             )
-        } else {
-            // Elegant placeholder gradient with music note icon
-            Box(
-                modifier = Modifier
-                    .size(size * 0.72f)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.size(size * 0.48f)
-                )
-            }
         }
     }
 }
@@ -179,7 +195,7 @@ fun SkeletonPlaceholder(
     val brush = Brush.linearGradient(
         colors = listOf(
             SurfaceHighlightDark,
-            Color(0xFF38384C),
+            Color(0xFF282836),
             SurfaceHighlightDark
         ),
         start = Offset.Zero,
@@ -203,7 +219,7 @@ fun MiniEqualizerBars(
 ) {
     if (reduceAnimations || !isPlaying) {
         Row(
-            modifier = modifier.height(16.dp),
+            modifier = modifier.height(14.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.Bottom
         ) {
@@ -212,9 +228,9 @@ fun MiniEqualizerBars(
                 val h = if (isPlaying) staticHeights[i % staticHeights.size] else 0.25f
                 Box(
                     modifier = Modifier
-                        .width(3.dp)
-                        .height((16 * h).dp.coerceAtLeast(3.dp))
-                        .clip(RoundedCornerShape(1.5.dp))
+                        .width(2.5.dp)
+                        .height((14 * h).dp.coerceAtLeast(2.5.dp))
+                        .clip(RoundedCornerShape(1.25.dp))
                         .background(color)
                 )
             }
@@ -225,10 +241,10 @@ fun MiniEqualizerBars(
     val transition = rememberInfiniteTransition(label = "equalizer")
 
     val bar1Height by transition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
+        initialValue = 0.25f,
+        targetValue = 0.95f,
         animationSpec = infiniteRepeatable(
-            animation = tween(400, easing = FastOutSlowInEasing),
+            animation = tween(380, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "bar1"
@@ -236,9 +252,9 @@ fun MiniEqualizerBars(
 
     val bar2Height by transition.animateFloat(
         initialValue = 0.4f,
-        targetValue = if (isPlaying) 0.9f else 0.4f,
+        targetValue = if (isPlaying) 0.85f else 0.4f,
         animationSpec = infiniteRepeatable(
-            animation = tween(550, delayMillis = 100, easing = FastOutSlowInEasing),
+            animation = tween(500, delayMillis = 80, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "bar2"
@@ -246,9 +262,9 @@ fun MiniEqualizerBars(
 
     val bar3Height by transition.animateFloat(
         initialValue = 0.3f,
-        targetValue = if (isPlaying) 0.85f else 0.3f,
+        targetValue = if (isPlaying) 0.80f else 0.3f,
         animationSpec = infiniteRepeatable(
-            animation = tween(450, delayMillis = 200, easing = FastOutSlowInEasing),
+            animation = tween(420, delayMillis = 160, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "bar3"
@@ -257,7 +273,7 @@ fun MiniEqualizerBars(
     val heights = listOf(bar1Height, bar2Height, bar3Height)
 
     Row(
-        modifier = modifier.height(16.dp),
+        modifier = modifier.height(14.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.Bottom
     ) {
@@ -265,10 +281,10 @@ fun MiniEqualizerBars(
             val h = heights.getOrElse(i % heights.size) { 0.5f }
             Box(
                 modifier = Modifier
-                    .width(3.dp)
-                    .height((16 * h).dp.coerceAtLeast(3.dp))
-                .clip(RoundedCornerShape(1.5.dp))
-                .background(color)
+                    .width(2.5.dp)
+                    .height((14 * h).dp.coerceAtLeast(2.5.dp))
+                    .clip(RoundedCornerShape(1.25.dp))
+                    .background(color)
             )
         }
     }

@@ -64,6 +64,7 @@ import androidx.compose.ui.layout.ContentScale
 import com.example.model.AlbumItem
 import com.example.model.Song
 import com.example.model.VideoItem
+import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryAccent
 import com.example.ui.theme.SecondaryCyan
@@ -139,14 +140,14 @@ fun HomeScreen(
             .testTag("home_screen")
             .fillMaxSize(),
         contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         // Top App Bar: Brand Logo, Search icon, Settings icon, Overflow (⋮) Menu
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -316,15 +317,15 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = greeting,
                     style = MaterialTheme.typography.displayMedium.copy(
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                 )
@@ -352,12 +353,12 @@ fun HomeScreen(
             }
         }
 
-        // Quick Action Chips (BeatWave Wrapped & Achievements)
+        // Quick Action Chips (BeatWave Wrapped & Achievements) - Filled pill with tonal surface, no outline
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // BeatWave Wrapped Pill
@@ -365,10 +366,9 @@ fun HomeScreen(
                     modifier = Modifier
                         .testTag("home_wrapped_chip")
                         .clip(RoundedCornerShape(20.dp))
-                        .background(PrimaryViolet.copy(alpha = 0.2f))
-                        .border(1.dp, PrimaryViolet.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .background(SurfaceVariantDark)
                         .clickable { onOpenWrapped() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -376,13 +376,14 @@ fun HomeScreen(
                         imageVector = Icons.Default.Celebration,
                         contentDescription = null,
                         tint = PrimaryViolet,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Text(
                         text = "BeatWave Wrapped",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary,
+                            fontSize = 13.sp
                         )
                     )
                 }
@@ -392,10 +393,9 @@ fun HomeScreen(
                     modifier = Modifier
                         .testTag("home_achievements_chip")
                         .clip(RoundedCornerShape(20.dp))
-                        .background(SecondaryAccent.copy(alpha = 0.2f))
-                        .border(1.dp, SecondaryAccent.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .background(SurfaceVariantDark)
                         .clickable { onOpenAchievements() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -403,13 +403,14 @@ fun HomeScreen(
                         imageVector = Icons.Default.EmojiEvents,
                         contentDescription = null,
                         tint = SecondaryAccent,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Text(
                         text = "Badges & Stats",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary,
+                            fontSize = 13.sp
                         )
                     )
                 }
@@ -423,27 +424,28 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = "Continue Watching",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 18.sp,
                                 color = TextPrimary
                             )
                         )
                         Text(
                             text = "${continueWatching.size} in progress",
-                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 12.sp)
                         )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(continueWatching, key = { it.id }) { video ->
@@ -464,7 +466,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val rows = recentlyPlayed.chunked(2)
@@ -541,15 +543,16 @@ fun HomeScreen(
                     Text(
                         text = "Albums",
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 18.sp,
                             color = TextPrimary
                         ),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                     )
 
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(albums, key = { it.title + it.artist }) { album ->
                             HomeAlbumCard(
@@ -640,18 +643,14 @@ fun SpotifyQuickCard(
             .height(56.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (isCurrent) SurfaceHighlightDark else SurfaceVariantDark)
-            .border(
-                1.dp,
-                if (isCurrent) PrimaryViolet.copy(alpha = 0.6f) else Color(0x1A8B5CF6),
-                RoundedCornerShape(8.dp)
-            )
+            .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
             .clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically
     ) {
         AlbumArtThumbnail(
             song = song,
             size = 56.dp,
-            shapeRadius = 0.dp
+            shapeRadius = 6.dp
         )
 
         Spacer(modifier = Modifier.width(10.dp))
@@ -659,11 +658,11 @@ fun SpotifyQuickCard(
         Text(
             text = song.displayTitle,
             style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
                 color = if (isCurrent) PrimaryViolet else TextPrimary
             ),
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
@@ -672,7 +671,7 @@ fun SpotifyQuickCard(
             Box(
                 modifier = Modifier
                     .padding(end = 8.dp)
-                    .size(28.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
                     .background(PrimaryViolet),
                 contentAlignment = Alignment.Center
@@ -686,7 +685,7 @@ fun SpotifyQuickCard(
 }
 
 /**
- * Horizontal Carousel Section with large rounded-corner cards
+ * Horizontal Carousel Section with 132dp cover cards
  */
 @Composable
 fun HomeCarouselSection(
@@ -702,15 +701,16 @@ fun HomeCarouselSection(
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
                 color = TextPrimary
             ),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
         )
 
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(songs, key = { it.id }) { song ->
                 val isCurrent = song.id == currentSongId
@@ -727,7 +727,7 @@ fun HomeCarouselSection(
 }
 
 /**
- * Large rounded-corner card for horizontal carousel (140dp x 140dp artwork)
+ * Home shelf card: cover size 132dp square, corner radius 12dp, title 14sp medium, artist 12sp secondary, 12dp spacing
  */
 @Composable
 fun HomeSongCard(
@@ -741,46 +741,34 @@ fun HomeSongCard(
     Column(
         modifier = modifier
             .testTag("home_card_${song.id}")
-            .width(140.dp)
+            .width(132.dp)
             .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
-                .size(140.dp)
-                .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = Color(0x338B5CF6))
+                .size(132.dp)
+                .shadow(4.dp, RoundedCornerShape(12.dp), spotColor = Color.Black.copy(alpha = 0.35f))
                 .clip(RoundedCornerShape(12.dp))
-                .border(
-                    1.dp,
-                    if (isCurrent) PrimaryViolet else Color(0x228B5CF6),
-                    RoundedCornerShape(12.dp)
-                )
+                .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
         ) {
             AlbumArtThumbnail(
                 song = song,
-                size = 140.dp,
+                size = 132.dp,
                 shapeRadius = 12.dp
             )
 
-            // Play overlay button
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(8.dp)
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(PrimaryViolet)
-                    .shadow(4.dp, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isCurrent) {
+            // Small 32dp indicator only when current/playing
+            if (isCurrent) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(PrimaryViolet),
+                    contentAlignment = Alignment.Center
+                ) {
                     MiniEqualizerBars(isPlaying = isPlaying, barCount = 3, color = Color.White)
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
             }
         }
@@ -790,8 +778,8 @@ fun HomeSongCard(
         Text(
             text = song.displayTitle,
             style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
                 color = if (isCurrent) PrimaryViolet else TextPrimary
             ),
             maxLines = 1,
@@ -830,19 +818,19 @@ fun HomeAlbumCard(
     Column(
         modifier = modifier
             .testTag("home_album_${album.title}")
-            .width(140.dp)
+            .width(132.dp)
             .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
-                .size(140.dp)
-                .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = Color(0x338B5CF6))
+                .size(132.dp)
+                .shadow(4.dp, RoundedCornerShape(12.dp), spotColor = Color.Black.copy(alpha = 0.35f))
                 .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0x228B5CF6), RoundedCornerShape(12.dp))
+                .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
         ) {
             AlbumArtThumbnail(
                 song = album.songs.firstOrNull(),
-                size = 140.dp,
+                size = 132.dp,
                 shapeRadius = 12.dp
             )
         }
@@ -852,8 +840,8 @@ fun HomeAlbumCard(
         Text(
             text = album.title,
             style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
                 color = TextPrimary
             ),
             maxLines = 1,
@@ -863,7 +851,7 @@ fun HomeAlbumCard(
         Text(
             text = "${album.artist} • ${album.songCount} tracks",
             style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = TextSecondary
             ),
             maxLines = 1,

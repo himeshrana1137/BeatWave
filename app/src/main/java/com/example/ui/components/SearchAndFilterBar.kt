@@ -234,6 +234,8 @@ fun SearchAndFilterBar(
                                 SortOption.DATE_ADDED_DESC -> "Recent"
                                 SortOption.MOST_PLAYED -> "Plays"
                                 SortOption.RECENTLY_PLAYED -> "Played"
+                                SortOption.QUALITY_DESC -> "Quality"
+                                SortOption.QUALITY_ASC -> "Quality (Low)"
                             },
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = TextPrimary,

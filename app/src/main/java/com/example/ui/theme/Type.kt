@@ -15,25 +15,32 @@ val InterFontFamily = FontFamily(
     Font(R.font.inter, FontWeight.Bold)
 )
 
+// Refined typography hierarchy: Screen titles 28sp semibold, section titles 18sp semibold, body 14sp, captions 12sp
 val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 32.sp,
         lineHeight = 38.sp,
         letterSpacing = (-0.5).sp
     ),
     displayMedium = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 28.sp,
         lineHeight = 34.sp
     ),
     headlineMedium = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 26.sp
     ),
     titleLarge = TextStyle(
         fontFamily = InterFontFamily,
@@ -43,26 +50,38 @@ val Typography = Typography(
     ),
     titleMedium = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 22.sp
     ),
+    titleSmall = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    ),
     bodyLarge = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
         lineHeight = 20.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp
     ),
     labelLarge = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
         lineHeight = 18.sp
     ),
     labelMedium = TextStyle(
@@ -74,7 +93,7 @@ val Typography = Typography(
     labelSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 11.sp,
-        lineHeight = 14.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp
     )
 )

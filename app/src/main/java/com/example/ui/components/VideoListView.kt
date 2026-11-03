@@ -70,6 +70,7 @@ import com.example.model.VideoResolutionFilter
 import com.example.model.VideoResolutionTier
 import com.example.model.VideoSortOption
 import com.example.util.MediaQualityManager
+import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SecondaryAccent
 import com.example.ui.theme.SurfaceDark
@@ -137,7 +138,7 @@ fun VideoListView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -146,7 +147,7 @@ fun VideoListView(
                     text = "Videos",
                     style = MaterialTheme.typography.displayMedium.copy(
                         fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                 )
@@ -240,7 +241,7 @@ fun VideoListView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = 20.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -414,7 +415,7 @@ fun VideoListView(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -464,7 +465,7 @@ fun VideoGridCard(
             .testTag("video_grid_card_${video.id}")
             .clip(RoundedCornerShape(12.dp))
             .background(SurfaceDark)
-            .border(1.dp, Color(0x228B5CF6), RoundedCornerShape(12.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
             .clickable { onClick() }
     ) {
         // Thumbnail & Duration Badge
