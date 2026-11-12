@@ -1,8 +1,13 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,47 +18,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.VerticalAlignBottom
-import androidx.compose.material.icons.filled.VerticalAlignTop
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -61,13 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.Song
-import com.example.ui.theme.AccentPink
-import com.example.ui.theme.CardBorder
 import com.example.ui.theme.PrimaryViolet
-import com.example.ui.theme.SecondaryAccent
-import com.example.ui.theme.SecondaryCyan
-import com.example.ui.theme.SurfaceDark
-import com.example.ui.theme.SurfaceHighlightDark
 import com.example.ui.theme.SurfaceVariantDark
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -78,464 +50,171 @@ fun SongItemCard(
     song: Song,
     isCurrent: Boolean,
     isPlaying: Boolean,
+    isSelected: Boolean = false,
+    isInSelectionMode: Boolean = false,
     onSongClick: (Song) -> Unit,
-    onToggleFavorite: (Song) -> Unit,
-    onAddToPlaylist: (Song) -> Unit,
-    onDeleteSong: (Song) -> Unit,
-    onSongInfo: ((Song) -> Unit)? = null,
-    onShareSong: ((Song) -> Unit)? = null,
-    onCutRingtone: ((Song) -> Unit)? = null,
-    showQualityBadges: Boolean = true,
-    showDragHandle: Boolean = false,
-    isCustomOrder: Boolean = true,
-    dragHandleModifier: Modifier = Modifier,
-    onPlayNext: ((Song) -> Unit)? = null,
-    onAddToQueue: ((Song) -> Unit)? = null,
-    onMoveUp: (() -> Unit)? = null,
-    onMoveDown: (() -> Unit)? = null,
-    onMoveToTop: (() -> Unit)? = null,
-    onMoveToBottom: (() -> Unit)? = null,
-    reduceAnimations: Boolean = false,
+    onSongLongClick: ((Song) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     val haptic = LocalHapticFeedback.current
-    val density = LocalDensity.current
-    val swipeThresholdPx = with(density) { 68.dp.toPx() }
-    val maxSwipePx = with(density) { 130.dp.toPx() }
+    val containerColor = when {
+        isSelected -> PrimaryViolet.copy(alpha = 0.22f)
+        isCurrent -> SurfaceVariantDark.copy(alpha = 0.65f)
+        else -> Color.Transparent
+    }
 
-    var dragOffsetX by remember { mutableFloatStateOf(0f) }
-
-    val animatedOffsetX by animateFloatAsState(
-        targetValue = dragOffsetX,
-        animationSpec = if (reduceAnimations) tween(0) else tween(140),
-        label = "swipe_offset"
-    )
-
-    val containerColor = if (isCurrent) SurfaceVariantDark.copy(alpha = 0.65f) else Color.Transparent
-
-    Box(
+    Row(
         modifier = modifier
             .testTag("song_item_${song.id}")
             .fillMaxWidth()
-            .height(68.dp)
+            .height(64.dp)
             .clip(RoundedCornerShape(8.dp))
-    ) {
-        // Swipe Background Action Indicators
-        if (animatedOffsetX > 8f && onPlayNext != null) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(PrimaryViolet.copy(alpha = 0.15f))
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlaylistPlay,
-                        contentDescription = "Play Next",
-                        tint = PrimaryViolet,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Text(
-                        text = "Play Next",
-                        color = PrimaryViolet,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp
-                    )
+            .background(containerColor)
+            .combinedClickable(
+                onClick = { onSongClick(song) },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onSongLongClick?.invoke(song)
                 }
-            }
-        } else if (animatedOffsetX < -8f && onAddToQueue != null) {
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Selection Checkbox indicator
+        if (isInSelectionMode) {
             Box(
                 modifier = Modifier
-                    .matchParentSize()
-                    .background(PrimaryViolet.copy(alpha = 0.15f))
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.CenterEnd
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) PrimaryViolet else Color(0xFF2A2A38)),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Add to Queue",
-                        color = PrimaryViolet,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp
-                    )
+                if (isSelected) {
                     Icon(
-                        imageVector = Icons.Default.QueueMusic,
-                        contentDescription = "Add to Queue",
-                        tint = PrimaryViolet,
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(10.dp))
         }
 
-        // Foreground Song Row (No Card Background, No Border)
-        Row(
+        // Album Art Thumbnail (48dp)
+        AlbumArtThumbnail(
+            song = song,
+            size = 48.dp,
+            shapeRadius = 8.dp,
+            modifier = Modifier.size(48.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Title, Artist and Play Count Caption
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(68.dp)
-                .graphicsLayer { translationX = animatedOffsetX }
-                .clip(RoundedCornerShape(8.dp))
-                .background(containerColor)
-                .pointerInput(song.id, onPlayNext, onAddToQueue) {
-                    if (onPlayNext != null || onAddToQueue != null) {
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                if (dragOffsetX > swipeThresholdPx && onPlayNext != null) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onPlayNext.invoke(song)
-                                } else if (dragOffsetX < -swipeThresholdPx && onAddToQueue != null) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onAddToQueue.invoke(song)
-                                }
-                                dragOffsetX = 0f
-                            },
-                            onDragCancel = {
-                                dragOffsetX = 0f
-                            },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                dragOffsetX = (dragOffsetX + dragAmount).coerceIn(-maxSwipePx, maxSwipePx)
-                            }
-                        )
-                    }
-                }
-                .clickable { onSongClick(song) }
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .weight(1f)
+                .padding(end = 8.dp),
+            verticalArrangement = Arrangement.Center
         ) {
-            // Thumbnail with playing indicator (art 52dp, corner radius 8dp)
-            Box(contentAlignment = Alignment.BottomEnd) {
-                AlbumArtThumbnail(
-                    song = song,
-                    size = 52.dp,
-                    shapeRadius = 8.dp,
-                    reduceAnimations = reduceAnimations
-                )
-                if (isCurrent) {
-                    Box(
-                        modifier = Modifier
-                            .padding(2.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(Color.Black.copy(alpha = 0.75f))
-                            .padding(horizontal = 2.5.dp, vertical = 1.5.dp)
-                    ) {
-                        MiniEqualizerBars(
-                            isPlaying = isPlaying,
-                            color = PrimaryViolet,
-                            reduceAnimations = reduceAnimations
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Title and Artist
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = song.displayTitle,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp,
-                            color = if (isCurrent) PrimaryViolet else TextPrimary
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-
-                    if (isCurrent) {
-                        MiniEqualizerBars(
-                            isPlaying = isPlaying,
-                            color = PrimaryViolet,
-                            reduceAnimations = reduceAnimations
-                        )
-                    }
+                if (isCurrent && isPlaying) {
+                    AnimatedPlayingEqualizer(color = PrimaryViolet)
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (showQualityBadges) {
-                        val quality = remember(song.id) {
-                            com.example.util.MediaQualityManager.getAudioQualitySync(song)
-                        }
-                        AudioQualityBadge(quality = quality, compact = true)
-                    }
+                Text(
+                    text = song.displayTitle,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isCurrent) PrimaryViolet else TextPrimary,
+                        fontSize = 14.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = song.displayArtist,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                // Play count caption (hidden if never played)
+                if (song.playCount > 0) {
                     Text(
-                        text = song.displayArtist,
+                        text = "•  ${song.playCount} ${if (song.playCount == 1) "play" else "plays"}",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
-                    )
-                    Text(
-                        text = song.formattedDuration,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = TextMuted,
-                            fontSize = 12.sp
+                            color = PrimaryViolet.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     )
                 }
             }
+        }
 
-        // Favorite Button
-        IconButton(
-            onClick = { onToggleFavorite(song) },
-            modifier = Modifier
-                .testTag("favorite_button_${song.id}")
-                .minimumInteractiveComponentSize()
-                .size(40.dp)
-        ) {
-            Icon(
-                imageVector = if (song.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = if (song.isFavorite) "Remove from favorites" else "Add to favorites",
-                tint = if (song.isFavorite) AccentPink else TextMuted
+        // Duration text
+        Text(
+            text = song.formattedDuration,
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = TextMuted,
+                fontSize = 12.sp
             )
-        }
-
-        // More Menu
-        Box {
-            IconButton(
-                onClick = { menuExpanded = true },
-                modifier = Modifier
-                    .testTag("song_menu_${song.id}")
-                    .minimumInteractiveComponentSize()
-                    .size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More song options",
-                    tint = TextMuted
-                )
-            }
-
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-                modifier = Modifier.background(SurfaceHighlightDark)
-            ) {
-                onPlayNext?.let { playNextAction ->
-                    DropdownMenuItem(
-                        text = { Text("Play Next", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.PlaylistPlay,
-                                contentDescription = null,
-                                tint = PrimaryViolet
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            playNextAction(song)
-                        }
-                    )
-                }
-
-                onAddToQueue?.let { addToQueueAction ->
-                    DropdownMenuItem(
-                        text = { Text("Add to Queue", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.QueueMusic,
-                                contentDescription = null,
-                                tint = SecondaryAccent
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            addToQueueAction(song)
-                        }
-                    )
-                }
-
-                onMoveToTop?.let { moveToTopAction ->
-                    DropdownMenuItem(
-                        text = { Text("Move to Top", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.VerticalAlignTop,
-                                contentDescription = null,
-                                tint = SecondaryCyan
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            moveToTopAction()
-                        }
-                    )
-                }
-
-                onMoveUp?.let { moveUpAction ->
-                    DropdownMenuItem(
-                        text = { Text("Move Up", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.ArrowUpward,
-                                contentDescription = null,
-                                tint = SecondaryCyan
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            moveUpAction()
-                        }
-                    )
-                }
-
-                onMoveDown?.let { moveDownAction ->
-                    DropdownMenuItem(
-                        text = { Text("Move Down", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.ArrowDownward,
-                                contentDescription = null,
-                                tint = SecondaryCyan
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            moveDownAction()
-                        }
-                    )
-                }
-
-                onMoveToBottom?.let { moveToBottomAction ->
-                    DropdownMenuItem(
-                        text = { Text("Move to Bottom", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.VerticalAlignBottom,
-                                contentDescription = null,
-                                tint = SecondaryCyan
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            moveToBottomAction()
-                        }
-                    )
-                }
-
-                DropdownMenuItem(
-                    text = { Text("Add to Playlist", color = TextPrimary) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.PlaylistAdd,
-                            contentDescription = null,
-                            tint = PrimaryViolet
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onAddToPlaylist(song)
-                    }
-                )
-                onSongInfo?.let { onInfo ->
-                    DropdownMenuItem(
-                        text = { Text("Song Info", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = SecondaryAccent
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onInfo(song)
-                        }
-                    )
-                }
-                onShareSong?.let { onShare ->
-                    DropdownMenuItem(
-                        text = { Text("Share Track", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = null,
-                                tint = PrimaryViolet
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onShare(song)
-                        }
-                    )
-                }
-                onCutRingtone?.let { onCut ->
-                    DropdownMenuItem(
-                        text = { Text("Cut Ringtone", color = TextPrimary) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.ContentCut,
-                                contentDescription = null,
-                                tint = SecondaryAccent
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onCut(song)
-                        }
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text("Delete Track", color = Color(0xFFEF4444)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = Color(0xFFEF4444)
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onDeleteSong(song)
-                    }
-                )
-            }
-        }
-
-        // Reorder Drag Handle (≡)
-        if (showDragHandle) {
-            Box(
-                modifier = dragHandleModifier
-                    .testTag("drag_handle_${song.id}")
-                    .size(38.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.DragHandle,
-                    contentDescription = "Reorder song (Long-press & drag)",
-                    tint = if (isCustomOrder) TextSecondary else TextMuted.copy(alpha = 0.35f),
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
+        )
     }
 }
+
+@Composable
+fun AnimatedPlayingEqualizer(
+    color: Color = PrimaryViolet,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "eq_anim")
+    val bar1 by transition.animateFloat(
+        initialValue = 4f,
+        targetValue = 14f,
+        animationSpec = infiniteRepeatable(tween(420, easing = LinearEasing), RepeatMode.Reverse),
+        label = "b1"
+    )
+    val bar2 by transition.animateFloat(
+        initialValue = 12f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(tween(360, easing = LinearEasing), RepeatMode.Reverse),
+        label = "b2"
+    )
+    val bar3 by transition.animateFloat(
+        initialValue = 6f,
+        targetValue = 15f,
+        animationSpec = infiniteRepeatable(tween(480, easing = LinearEasing), RepeatMode.Reverse),
+        label = "b3"
+    )
+
+    Row(
+        modifier = modifier
+            .width(14.dp)
+            .height(15.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Box(modifier = Modifier.width(2.5.dp).height(bar1.dp).clip(RoundedCornerShape(1.dp)).background(color))
+        Box(modifier = Modifier.width(2.5.dp).height(bar2.dp).clip(RoundedCornerShape(1.dp)).background(color))
+        Box(modifier = Modifier.width(2.5.dp).height(bar3.dp).clip(RoundedCornerShape(1.dp)).background(color))
+    }
 }

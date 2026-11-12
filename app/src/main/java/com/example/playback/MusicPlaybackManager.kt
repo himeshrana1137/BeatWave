@@ -8,15 +8,14 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.PlaybackParams
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import com.example.data.MusicRepository
 import com.example.model.PlaybackSnapshot
 import com.example.model.RepeatMode
 import com.example.model.Song
-import com.example.widget.BeatWaveWidgetProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,21 +32,21 @@ class MusicPlaybackManager(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var tickerJob: Job? = null
-    private var sleepTimerJob: Job? = null
 
     private var mediaPlayer: MediaPlayer? = null
-    val equalizerManager = AudioEqualizerManager(context)
     val repository = MusicRepository(context)
-    val persistenceManager = PlaybackPersistenceManager(context)
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private var focusRequest: AudioFocusRequest? = null
     private var wasPlayingBeforeFocusLoss = false
 
-    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-        val settings = repository.getAppSettings()
-        if (!settings.autoPauseOnCallAndUnplug) return@OnAudioFocusChangeListener
+    // Real-time listening statistics tracking
+    private var currentSongForStats: Song? = null
+    private var lastPlayStartTimeRealtime: Long = 0L
+    private var accumulatedActiveListeningMs: Long = 0L
+    private var hasPlayBeenCountedForCurrentInstance: Boolean = false
 
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
@@ -73,18 +72,10 @@ class MusicPlaybackManager(private val context: Context) {
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, intent: Intent?) {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
-                val settings = repository.getAppSettings()
-                if (settings.autoPauseOnCallAndUnplug && _snapshot.value.isPlaying) {
+                if (_snapshot.value.isPlaying) {
                     pause()
                 }
             }
-        }
-    }
-
-    private val shakeDetector = ShakeDetector(context) {
-        val settings = repository.getAppSettings()
-        if (settings.shakeToSkipEnabled && _snapshot.value.isPlaying) {
-            skipNext()
         }
     }
 
@@ -192,19 +183,6 @@ class MusicPlaybackManager(private val context: Context) {
         playIndex(index)
     }
 
-    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
-        if (fromIndex in activeQueue.indices && toIndex in activeQueue.indices) {
-            val item = activeQueue.removeAt(fromIndex)
-            activeQueue.add(toIndex, item)
-            val currentSong = _snapshot.value.currentSong
-            val newIndex = activeQueue.indexOfFirst { it.id == currentSong?.id }
-            _snapshot.value = _snapshot.value.copy(
-                queue = activeQueue.toList(),
-                currentQueueIndex = newIndex
-            )
-        }
-    }
-
     fun playNext(song: Song) {
         if (activeQueue.isEmpty()) {
             playSong(song)
@@ -241,30 +219,23 @@ class MusicPlaybackManager(private val context: Context) {
         )
     }
 
-    fun updateQueueOrder(newOrder: List<Song>) {
-        if (activeQueue.isEmpty()) return
-        val currentSong = _snapshot.value.currentSong
-        originalQueue.clear()
-        originalQueue.addAll(newOrder)
-        if (!_snapshot.value.isShuffle) {
-            activeQueue.clear()
-            activeQueue.addAll(newOrder)
-            val newIndex = activeQueue.indexOfFirst { it.id == currentSong?.id }
-            _snapshot.value = _snapshot.value.copy(
-                queue = activeQueue.toList(),
-                currentQueueIndex = newIndex
-            )
-        }
-    }
-
     private fun playIndex(index: Int, startPositionMs: Long = 0L) {
         if (index !in activeQueue.indices) return
+
+        // Flush any accumulated listening time for previous track before switching
+        flushListeningTimeToDb(isCurrentTrackEnding = true)
 
         startServiceIfAllowed()
         requestAudioFocus()
         registerNoisyReceiver()
         val song = activeQueue[index]
         releasePlayer()
+
+        // Reset listening statistics state for the new song instance
+        currentSongForStats = song
+        accumulatedActiveListeningMs = 0L
+        hasPlayBeenCountedForCurrentInstance = false
+        lastPlayStartTimeRealtime = SystemClock.elapsedRealtime()
 
         try {
             val player = MediaPlayer().apply {
@@ -297,36 +268,7 @@ class MusicPlaybackManager(private val context: Context) {
             }
 
             mediaPlayer = player
-
-            // Apply playback speed & pitch
-            try {
-                val speed = _snapshot.value.playbackSpeed
-                val pitch = _snapshot.value.playbackPitch
-                player.playbackParams = PlaybackParams().setSpeed(speed).setPitch(pitch)
-            } catch (_: Exception) {}
-
-            // Fade in if enabled
-            val settings = repository.getAppSettings()
-            if (settings.fadeInOutEnabled) {
-                try {
-                    player.setVolume(0f, 0f)
-                    player.start()
-                    scope.launch {
-                        for (i in 1..10) {
-                            val vol = i / 10f
-                            try { player.setVolume(vol, vol) } catch (_: Exception) {}
-                            delay(25)
-                        }
-                    }
-                } catch (_: Exception) {
-                    player.start()
-                }
-            } else {
-                player.start()
-            }
-
-            // Attach hardware equalizer
-            equalizerManager.attachAudioSession(player.audioSessionId)
+            player.start()
 
             val detectedDuration = if (player.duration > 0) player.duration.toLong() else song.durationMs
             val initialPos = if (startPositionMs > 0L) startPositionMs else 0L
@@ -339,8 +281,6 @@ class MusicPlaybackManager(private val context: Context) {
                 queue = activeQueue.toList(),
                 currentQueueIndex = index
             )
-
-            persistenceManager.savePlaybackState(_snapshot.value, activeQueue, initialPos)
 
             onSongPlayedListener?.invoke(song)
 
@@ -364,9 +304,16 @@ class MusicPlaybackManager(private val context: Context) {
     }
 
     private fun handleTrackCompletion() {
+        flushListeningTimeToDb(isCurrentTrackEnding = true)
+
         val currentRepeat = _snapshot.value.repeatMode
         when (currentRepeat) {
             RepeatMode.ONE -> {
+                // Replay same song; reset stats counters so this new instance counts toward plays
+                accumulatedActiveListeningMs = 0L
+                hasPlayBeenCountedForCurrentInstance = false
+                lastPlayStartTimeRealtime = SystemClock.elapsedRealtime()
+
                 mediaPlayer?.seekTo(0)
                 mediaPlayer?.start()
                 _snapshot.value = _snapshot.value.copy(isPlaying = true, currentPositionMs = 0L)
@@ -379,7 +326,10 @@ class MusicPlaybackManager(private val context: Context) {
                 if (currentIndex < activeQueue.lastIndex) {
                     skipNext()
                 } else {
-                    _snapshot.value = _snapshot.value.copy(isPlaying = false, currentPositionMs = _snapshot.value.durationMs)
+                    _snapshot.value = _snapshot.value.copy(
+                        isPlaying = false,
+                        currentPositionMs = _snapshot.value.durationMs
+                    )
                     stopPositionTicker()
                     notifyServicePlaybackChanged()
                 }
@@ -411,24 +361,8 @@ class MusicPlaybackManager(private val context: Context) {
         val player = mediaPlayer
         if (player != null) {
             if (!player.isPlaying) {
-                val settings = repository.getAppSettings()
-                if (settings.fadeInOutEnabled) {
-                    try {
-                        player.setVolume(0f, 0f)
-                        player.start()
-                        scope.launch {
-                            for (i in 1..10) {
-                                val vol = i / 10f
-                                try { player.setVolume(vol, vol) } catch (_: Exception) {}
-                                delay(25)
-                            }
-                        }
-                    } catch (_: Exception) {
-                        player.start()
-                    }
-                } else {
-                    player.start()
-                }
+                lastPlayStartTimeRealtime = SystemClock.elapsedRealtime()
+                player.start()
                 _snapshot.value = _snapshot.value.copy(isPlaying = true)
                 startPositionTicker()
                 notifyServicePlaybackChanged()
@@ -443,58 +377,28 @@ class MusicPlaybackManager(private val context: Context) {
         unregisterNoisyReceiver()
         val player = mediaPlayer ?: return
         if (player.isPlaying) {
+            flushListeningTimeToDb(isCurrentTrackEnding = false)
             val currentPos = try { player.currentPosition.toLong() } catch (_: Exception) { null } ?: _snapshot.value.currentPositionMs
-            val settings = repository.getAppSettings()
-            if (settings.fadeInOutEnabled) {
-                scope.launch {
-                    for (i in 9 downTo 0) {
-                        val vol = i / 10f
-                        try { player.setVolume(vol, vol) } catch (_: Exception) {}
-                        delay(20)
-                    }
-                    try {
-                        player.pause()
-                        player.setVolume(1f, 1f)
-                    } catch (_: Exception) {}
-                    _snapshot.value = _snapshot.value.copy(isPlaying = false)
-                    stopPositionTicker()
-                    notifyServicePlaybackChanged()
-                    persistenceManager.savePlaybackState(_snapshot.value, activeQueue, currentPos)
-                }
-            } else {
-                try {
-                    player.pause()
-                } catch (_: Exception) {}
-                _snapshot.value = _snapshot.value.copy(isPlaying = false)
-                stopPositionTicker()
-                notifyServicePlaybackChanged()
-                persistenceManager.savePlaybackState(_snapshot.value, activeQueue, currentPos)
-            }
-        }
-    }
-
-    fun setPlaybackSpeedAndPitch(speed: Float, pitch: Float) {
-        val safeSpeed = speed.coerceIn(0.5f, 2.5f)
-        val safePitch = pitch.coerceIn(0.5f, 2.0f)
-        _snapshot.value = _snapshot.value.copy(
-            playbackSpeed = safeSpeed,
-            playbackPitch = safePitch
-        )
-        try {
-            mediaPlayer?.playbackParams = PlaybackParams().setSpeed(safeSpeed).setPitch(safePitch)
-            persistenceManager.savePlaybackState(_snapshot.value, activeQueue, _snapshot.value.currentPositionMs)
-        } catch (e: Exception) {
-            Log.w("MusicPlaybackManager", "Could not set playback params: ${e.message}")
+            player.pause()
+            _snapshot.value = _snapshot.value.copy(
+                isPlaying = false,
+                currentPositionMs = currentPos
+            )
+            stopPositionTicker()
+            notifyServicePlaybackChanged()
         }
     }
 
     fun seekTo(positionMs: Long) {
-        val player = mediaPlayer ?: return
-        val safePos = positionMs.coerceIn(0L, _snapshot.value.durationMs.coerceAtLeast(1L))
-        player.seekTo(safePos.toInt())
-        _snapshot.value = _snapshot.value.copy(currentPositionMs = safePos)
+        val player = mediaPlayer
+        val target = positionMs.coerceAtLeast(0L)
+        if (player != null) {
+            try {
+                player.seekTo(target.toInt())
+            } catch (_: Exception) {}
+        }
+        _snapshot.value = _snapshot.value.copy(currentPositionMs = target)
         notifyServicePlaybackChanged()
-        persistenceManager.updatePosition(safePos)
     }
 
     fun skipNext() {
@@ -512,6 +416,12 @@ class MusicPlaybackManager(private val context: Context) {
         if (activeQueue.isEmpty()) return
         val currentPos = _snapshot.value.currentPositionMs
         if (currentPos > 3000L) {
+            // Replay from beginning: reset stats counters so this replay counts
+            flushListeningTimeToDb(isCurrentTrackEnding = false)
+            accumulatedActiveListeningMs = 0L
+            hasPlayBeenCountedForCurrentInstance = false
+            lastPlayStartTimeRealtime = SystemClock.elapsedRealtime()
+
             seekTo(0L)
             return
         }
@@ -532,7 +442,6 @@ class MusicPlaybackManager(private val context: Context) {
 
         _snapshot.value = _snapshot.value.copy(isShuffle = newShuffle)
         rebuildActiveQueue(keepCurrentSong = currentSong)
-        persistenceManager.savePlaybackState(_snapshot.value, activeQueue, _snapshot.value.currentPositionMs)
     }
 
     private fun rebuildActiveQueue(keepCurrentSong: Song? = null) {
@@ -568,61 +477,55 @@ class MusicPlaybackManager(private val context: Context) {
             RepeatMode.ONE -> RepeatMode.OFF
         }
         _snapshot.value = _snapshot.value.copy(repeatMode = nextMode)
-        persistenceManager.savePlaybackState(_snapshot.value, activeQueue, _snapshot.value.currentPositionMs)
     }
 
-    // Sleep Timer
-    fun setSleepTimer(minutes: Int) {
-        cancelSleepTimer()
-        if (minutes <= 0) return
+    /**
+     * Flushes active listening time to the Room database on a background thread.
+     * Evaluates play qualification: >= 30 seconds (or >= 50% duration if song is shorter).
+     */
+    private fun flushListeningTimeToDb(isCurrentTrackEnding: Boolean) {
+        val song = currentSongForStats ?: return
+        if (lastPlayStartTimeRealtime <= 0L) return
 
-        var secondsRemaining = minutes * 60
-        _snapshot.value = _snapshot.value.copy(sleepTimerRemainingSeconds = secondsRemaining)
+        val now = SystemClock.elapsedRealtime()
+        val sessionDelta = (now - lastPlayStartTimeRealtime).coerceAtLeast(0L)
+        lastPlayStartTimeRealtime = if (isCurrentTrackEnding) 0L else now
 
-        sleepTimerJob = scope.launch {
-            while (isActive && secondsRemaining > 0) {
-                delay(1000)
-                secondsRemaining--
-                _snapshot.value = _snapshot.value.copy(sleepTimerRemainingSeconds = secondsRemaining)
+        accumulatedActiveListeningMs += sessionDelta
+
+        // Determine if a play should be recorded
+        val shouldCountPlay = if (!hasPlayBeenCountedForCurrentInstance) {
+            val threshold = if (song.durationMs in 1..29999L) {
+                song.durationMs / 2
+            } else {
+                30000L
             }
-            if (secondsRemaining <= 0) {
-                pause()
-                _snapshot.value = _snapshot.value.copy(sleepTimerRemainingSeconds = null)
+            accumulatedActiveListeningMs >= threshold
+        } else {
+            false
+        }
+
+        if (shouldCountPlay) {
+            hasPlayBeenCountedForCurrentInstance = true
+        }
+
+        if (sessionDelta > 0L || shouldCountPlay) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    repository.recordPlaybackSession(
+                        song = song,
+                        timeListenedMs = sessionDelta,
+                        isCountedPlay = shouldCountPlay
+                    )
+                } catch (e: Exception) {
+                    Log.e("MusicPlaybackManager", "Error saving listening stats: ${e.message}")
+                }
             }
         }
-    }
-
-    fun cancelSleepTimer() {
-        sleepTimerJob?.cancel()
-        sleepTimerJob = null
-        _snapshot.value = _snapshot.value.copy(sleepTimerRemainingSeconds = null)
-    }
-
-    // A-B Repeat Support
-    fun setPointA() {
-        val current = _snapshot.value.currentPositionMs
-        val currentB = _snapshot.value.abRepeatB
-        _snapshot.value = _snapshot.value.copy(
-            abRepeatA = current,
-            abRepeatB = if (currentB != null && currentB <= current) null else currentB
-        )
-    }
-
-    fun setPointB() {
-        val a = _snapshot.value.abRepeatA ?: return
-        val current = _snapshot.value.currentPositionMs
-        if (current > a) {
-            _snapshot.value = _snapshot.value.copy(abRepeatB = current)
-        }
-    }
-
-    fun clearABRepeat() {
-        _snapshot.value = _snapshot.value.copy(abRepeatA = null, abRepeatB = null)
     }
 
     private fun startPositionTicker() {
         stopPositionTicker()
-        var tickCount = 0
         tickerJob = scope.launch {
             while (isActive) {
                 mediaPlayer?.let { player ->
@@ -630,28 +533,16 @@ class MusicPlaybackManager(private val context: Context) {
                         val current = player.currentPosition.toLong()
                         val dur = if (player.duration > 0) player.duration.toLong() else _snapshot.value.durationMs
 
-                        val a = _snapshot.value.abRepeatA
-                        val b = _snapshot.value.abRepeatB
-                        if (a != null && b != null && current >= b) {
-                            player.seekTo(a.toInt())
-                            _snapshot.value = _snapshot.value.copy(
-                                currentPositionMs = a,
-                                durationMs = dur
-                            )
-                        } else {
-                            _snapshot.value = _snapshot.value.copy(
-                                currentPositionMs = current,
-                                durationMs = dur
-                            )
-                        }
+                        _snapshot.value = _snapshot.value.copy(
+                            currentPositionMs = current,
+                            durationMs = dur
+                        )
 
-                        tickCount++
-                        if (tickCount % 12 == 0) { // update position every ~3s for long files
-                            persistenceManager.updatePosition(current)
-                        }
+                        // Periodic flush of real listening time every ~5 seconds
+                        flushListeningTimeToDb(isCurrentTrackEnding = false)
                     }
                 }
-                delay(250)
+                delay(500)
             }
         }
     }
@@ -664,14 +555,6 @@ class MusicPlaybackManager(private val context: Context) {
     private fun notifyServicePlaybackChanged() {
         val currentSnapshot = _snapshot.value
         MusicService.instance?.updateState(currentSnapshot)
-        BeatWaveWidgetProvider.updateWidget(context, currentSnapshot.currentSong, currentSnapshot.isPlaying)
-
-        val settings = repository.getAppSettings()
-        if (currentSnapshot.isPlaying && settings.shakeToSkipEnabled) {
-            shakeDetector.start()
-        } else {
-            shakeDetector.stop()
-        }
     }
 
     private fun releasePlayer() {
@@ -684,78 +567,12 @@ class MusicPlaybackManager(private val context: Context) {
     }
 
     fun release() {
-        cancelSleepTimer()
+        flushListeningTimeToDb(isCurrentTrackEnding = true)
         releasePlayer()
         abandonAudioFocus()
         unregisterNoisyReceiver()
-        shakeDetector.stop()
-        equalizerManager.release()
         scope.launch {
             _snapshot.value = PlaybackSnapshot()
         }
-    }
-
-    fun savePlaybackState() {
-        val pos = try { mediaPlayer?.currentPosition?.toLong() } catch (_: Exception) { null } ?: _snapshot.value.currentPositionMs
-        persistenceManager.savePlaybackState(_snapshot.value, activeQueue, pos)
-    }
-
-    fun restoreSavedPlaybackState(availableSongs: List<Song>): Boolean {
-        if (_snapshot.value.currentSong != null) return false
-        val saved = persistenceManager.getSavedPlaybackState() ?: return false
-
-        // Helper to check if a song file exists
-        fun songExists(s: Song): Boolean {
-            if (s.isDemoTrack) return true
-            if (s.uriString.startsWith("content://") || s.uriString.startsWith("android.resource://")) return true
-            return try {
-                val path = if (s.uriString.startsWith("file://")) s.uriString.removePrefix("file://") else s.uriString
-                File(path).exists()
-            } catch (_: Exception) {
-                true
-            }
-        }
-
-        // Find the current song
-        val currentSong = availableSongs.firstOrNull { s ->
-            (s.id == saved.currentSongId || s.uriString == saved.currentSongUri) && songExists(s)
-        } ?: return false
-
-        // Filter queue to songs that actually exist
-        val resolvedQueue = mutableListOf<Song>()
-        saved.queueSongIds.forEach { qId ->
-            val s = availableSongs.firstOrNull { it.id == qId && songExists(it) }
-            if (s != null && !resolvedQueue.contains(s)) {
-                resolvedQueue.add(s)
-            }
-        }
-        if (!resolvedQueue.contains(currentSong)) {
-            resolvedQueue.add(0, currentSong)
-        }
-
-        originalQueue.clear()
-        originalQueue.addAll(resolvedQueue)
-        activeQueue.clear()
-        activeQueue.addAll(resolvedQueue)
-
-        val currentIndex = activeQueue.indexOfFirst { it.id == currentSong.id }.coerceAtLeast(0)
-        val dur = if (saved.durationMs > 0) saved.durationMs else currentSong.durationMs
-        val pos = saved.positionMs.coerceIn(0L, dur)
-
-        _snapshot.value = PlaybackSnapshot(
-            currentSong = currentSong,
-            isPlaying = false,
-            currentPositionMs = pos,
-            durationMs = dur,
-            isShuffle = saved.isShuffle,
-            repeatMode = saved.repeatMode,
-            playbackSpeed = saved.speed,
-            playbackPitch = saved.pitch,
-            queue = activeQueue.toList(),
-            currentQueueIndex = currentIndex
-        )
-
-        notifyServicePlaybackChanged()
-        return true
     }
 }

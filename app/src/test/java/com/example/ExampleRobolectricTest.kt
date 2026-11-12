@@ -2,13 +2,12 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.example.model.ListeningStats
+import com.example.model.ListeningStatsOverview
+import com.example.model.Playlist
 import com.example.model.Song
-import com.example.model.VideoItem
-import com.example.playback.EqualizerState
-import com.example.playback.LrcParser
+import com.example.model.SortOption
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,7 +29,8 @@ class ExampleRobolectricTest {
     fun `song formatted duration test`() {
         val song = Song(
             id = "test_1",
-            title = "Test Track",
+            title = "Midnight Horizon",
+            artist = "Aether",
             durationMs = 125000L, // 2 minutes 5 seconds
             uriString = "content://audio/1"
         )
@@ -38,166 +38,83 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `video formatted duration test`() {
-        val video = VideoItem(
-            id = "vid_1",
-            title = "Test Video",
-            durationMs = 3665000L, // 61 minutes 5 seconds
-            uriString = "content://video/1"
-        )
-        assertEquals("61:05", video.formattedDuration)
-    }
-
-    @Test
-    fun `equalizer state default presets test`() {
-        val eqState = EqualizerState()
-        assertTrue(eqState.isEnabled)
-        assertTrue(eqState.availablePresets.contains("Bass Boost"))
-        assertEquals(5, eqState.bandLevels.size)
-    }
-
-    @Test
-    fun `lrc parser text parsing test`() {
-        val sampleLrc = """
-            [ti:Test Title]
-            [00:02.50]First line of lyrics
-            [00:05.80]Second line of lyrics
-        """.trimIndent()
-
-        val parsed = LrcParser.parseLrcText(sampleLrc)
-        assertEquals(2, parsed.size)
-        assertEquals(2500L, parsed[0].timeMs)
-        assertEquals("First line of lyrics", parsed[0].text)
-        assertEquals(5800L, parsed[1].timeMs)
-        assertEquals("Second line of lyrics", parsed[1].text)
-    }
-
-    @Test
     fun `listening stats formatted total time test`() {
-        val stats = ListeningStats(
-            totalTracksPlayed = 15,
-            totalListeningTimeMs = 7320000L // 2 hours 2 minutes
+        val overview = ListeningStatsOverview(
+            totalPlays = 42,
+            totalListeningTimeMs = 152100000L // 42 hours 15 minutes
         )
-        assertEquals("2h 2m", stats.formattedTotalTime)
+        assertEquals("42 h 15 min", overview.formattedTotalTime)
     }
 
     @Test
-    fun `album, artist, and folder grouping test`() {
-        val song1 = Song(
-            id = "s1",
-            title = "Alpha",
-            artist = "Solaris",
-            album = "Cosmic Vol 1",
-            folderName = "Synthwave",
-            uriString = "content://audio/1"
+    fun `listening stats formatted short time test`() {
+        val overview = ListeningStatsOverview(
+            totalPlays = 3,
+            totalListeningTimeMs = 45000L // 45 seconds
         )
-        val song2 = Song(
-            id = "s2",
-            title = "Beta",
-            artist = "Solaris",
-            album = "Cosmic Vol 2",
-            folderName = "Synthwave",
-            uriString = "content://audio/2"
-        )
-        val song3 = Song(
-            id = "s3",
-            title = "Gamma",
-            artist = "Luna",
-            album = "Moonlight",
-            folderName = "Chill",
-            uriString = "content://audio/3"
-        )
-
-        val songs = listOf(song1, song2, song3)
-
-        // Albums grouping
-        val albums = songs.groupBy { it.album }.map { (albumName, tracks) ->
-            com.example.model.AlbumItem(
-                title = albumName,
-                artist = tracks.first().artist,
-                songCount = tracks.size,
-                songs = tracks
-            )
-        }
-        assertEquals(3, albums.size)
-
-        // Artists grouping
-        val artists = songs.groupBy { it.artist }.map { (artistName, tracks) ->
-            com.example.model.ArtistItem(
-                name = artistName,
-                songCount = tracks.size,
-                albumCount = tracks.map { it.album }.distinct().size,
-                songs = tracks
-            )
-        }
-        val solaris = artists.first { it.name == "Solaris" }
-        assertEquals(2, solaris.songCount)
-        assertEquals(2, solaris.albumCount)
-
-        // Folders grouping
-        val folders = songs.groupBy { it.folderName }.map { (folderName, tracks) ->
-            com.example.model.FolderItem(
-                name = folderName,
-                path = "/storage/emulated/0/$folderName",
-                songCount = tracks.size,
-                songs = tracks
-            )
-        }
-        val synthFolder = folders.first { it.name == "Synthwave" }
-        assertEquals(2, synthFolder.songCount)
+        assertEquals("45 sec", overview.formattedTotalTime)
     }
 
     @Test
-    fun `app settings default values test`() {
-        val settings = com.example.model.AppSettings()
-        assertTrue(settings.autoPauseOnCallAndUnplug)
-        assertTrue(settings.headsetDoublePressEnabled)
-        assertTrue(!settings.shakeToSkipEnabled)
-        assertTrue(settings.filterShortAudioEnabled)
-        assertEquals(60, settings.minAudioDurationSec)
-        assertTrue(settings.blacklistedFolders.isEmpty())
-    }
-
-    @Test
-    fun `short audio filter logic test`() {
-        val shortSong = Song(id = "1", title = "Notification Ring", durationMs = 15000L, uriString = "u1")
-        val longSong = Song(id = "2", title = "Full Track", durationMs = 180000L, uriString = "u2")
-
-        val list = listOf(shortSong, longSong)
-        val filtered = list.filter { it.durationMs >= 60 * 1000L }
-
-        assertEquals(1, filtered.size)
-        assertEquals("Full Track", filtered.first().title)
-    }
-
-    @Test
-    fun `folder blacklist filtering test`() {
-        val blacklisted = setOf("whatsapp audio", "ringtones")
-        val songs = listOf(
-            Song(id = "1", title = "Chat Audio", folderName = "WhatsApp Audio", uriString = "u1"),
-            Song(id = "2", title = "Album Song", folderName = "Music", uriString = "u2")
-        )
-
-        val nonBlacklisted = songs.filter { song ->
-            val folder = song.folderName.trim().lowercase()
-            !blacklisted.any { it.trim().lowercase() == folder }
+    fun `play count threshold logic test`() {
+        // Condition: >= 30 seconds or >= 50% if song < 30 seconds
+        fun shouldCountPlay(songDurationMs: Long, listenedMs: Long): Boolean {
+            return if (songDurationMs < 30_000L) {
+                listenedMs >= (songDurationMs / 2)
+            } else {
+                listenedMs >= 30_000L
+            }
         }
 
-        assertEquals(1, nonBlacklisted.size)
-        assertEquals("Album Song", nonBlacklisted.first().title)
+        // Long song: 3 minutes (180s)
+        assertFalse(shouldCountPlay(180_000L, 29_000L))
+        assertTrue(shouldCountPlay(180_000L, 30_000L))
+        assertTrue(shouldCountPlay(180_000L, 120_000L))
+
+        // Short song: 20 seconds (20s) -> threshold is 10s
+        assertFalse(shouldCountPlay(20_000L, 9_000L))
+        assertTrue(shouldCountPlay(20_000L, 10_000L))
+        assertTrue(shouldCountPlay(20_000L, 20_000L))
     }
 
     @Test
-    fun `duplicate song detection grouping test`() {
-        val songA1 = Song(id = "1", title = "Midnight City", artist = "M83", durationMs = 240000L, uriString = "u1")
-        val songA2 = Song(id = "2", title = "midnight city", artist = "m83", durationMs = 240500L, uriString = "u2")
-        val songB = Song(id = "3", title = "Stargazing", artist = "Kygo", durationMs = 210000L, uriString = "u3")
+    fun `playlist model properties and immutability test`() {
+        val song1 = Song(id = "1", title = "Track 1", durationMs = 60000L)
+        val song2 = Song(id = "2", title = "Track 2", durationMs = 120000L)
 
-        val songs = listOf(songA1, songA2, songB)
-        val duplicates = songs.groupBy { "${it.title.trim().lowercase()}__${it.artist.trim().lowercase()}" }
-            .filter { it.value.size > 1 }
+        val playlist = Playlist(
+            id = 1L,
+            name = "Night Drives",
+            songs = listOf(song1, song2)
+        )
 
-        assertEquals(1, duplicates.size)
-        assertEquals(2, duplicates.values.first().size)
+        assertEquals("Night Drives", playlist.name)
+        assertEquals(2, playlist.songCount)
+        assertEquals(180000L, playlist.totalDurationMs)
+        assertEquals("03:00", playlist.formattedTotalDuration)
+    }
+
+    @Test
+    fun `song sort options test`() {
+        val s1 = Song(id = "1", title = "Bravo", artist = "Charlie", dateAdded = 100L)
+        val s2 = Song(id = "2", title = "Alpha", artist = "Delta", dateAdded = 300L)
+        val s3 = Song(id = "3", title = "Charlie", artist = "Alpha", dateAdded = 200L)
+
+        val list = listOf(s1, s2, s3)
+
+        val sortedByTitle = list.sortedWith(SortOption.TITLE.comparator)
+        assertEquals("Alpha", sortedByTitle[0].title)
+        assertEquals("Bravo", sortedByTitle[1].title)
+        assertEquals("Charlie", sortedByTitle[2].title)
+
+        val sortedByArtist = list.sortedWith(SortOption.ARTIST.comparator)
+        assertEquals("Alpha", sortedByArtist[0].artist)
+        assertEquals("Charlie", sortedByArtist[1].artist)
+        assertEquals("Delta", sortedByArtist[2].artist)
+
+        val sortedByDate = list.sortedWith(SortOption.DATE_ADDED.comparator)
+        assertEquals(300L, sortedByDate[0].dateAdded)
+        assertEquals(200L, sortedByDate[1].dateAdded)
+        assertEquals(100L, sortedByDate[2].dateAdded)
     }
 }

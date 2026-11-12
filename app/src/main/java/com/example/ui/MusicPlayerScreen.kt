@@ -1,10 +1,8 @@
 package com.example.ui
 
 import android.Manifest
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
-import androidx.activity.compose.BackHandler
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -15,827 +13,327 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.automirrored.outlined.QueueMusic
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Videocam
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.model.MainBottomTab
-import com.example.model.NavigationTab
-import com.example.ui.components.AddToPlaylistDialog
-import com.example.ui.components.CreatePlaylistDialog
-import com.example.ui.components.EqualizerScreen
+import com.example.model.MainTab
+import com.example.model.Playlist
+import com.example.ui.components.AddToPlaylistBottomSheet
 import com.example.ui.components.FullScreenPlayer
-import com.example.ui.components.HomeScreen
-import com.example.ui.components.LibraryScreen
 import com.example.ui.components.MiniPlayer
-import com.example.ui.components.SearchScreen
-import com.example.ui.components.SettingsScreen
-import com.example.ui.components.DuplicateFinderDialog
-import com.example.ui.components.FolderBlacklistDialog
-import com.example.ui.components.RingtoneCutterDialog
-import com.example.ui.components.SongInfoDialog
-import com.example.ui.components.VideoListView
-import com.example.ui.components.MoodTagDialog
-import com.example.ui.components.VaultDialog
-import com.example.ui.components.StreamUrlDialog
-import com.example.ui.components.BeatWaveWrappedDialog
-import com.example.ui.components.AchievementsDialog
-import com.example.util.CrashReport
-import com.example.util.CrashReportManager
-import com.example.util.MediaShareHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.example.ui.components.PlaylistsTabScreen
+import com.example.ui.components.SongPickerDialog
+import com.example.ui.components.SongsTabScreen
+import com.example.ui.components.StatsTabScreen
 import com.example.ui.theme.PrimaryViolet
 import com.example.ui.theme.SurfaceDark
-import com.example.ui.theme.SurfaceHighlightDark
 import com.example.ui.theme.SurfaceVariantDark
+import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.video.VideoPlayerView
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicPlayerScreen(
     viewModel: MusicViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val songs by viewModel.songs.collectAsStateWithLifecycle()
-    val videos by viewModel.videos.collectAsStateWithLifecycle()
-    val selectedVideo by viewModel.selectedVideo.collectAsStateWithLifecycle()
-    val mainBottomTab by viewModel.mainBottomTab.collectAsStateWithLifecycle()
-    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val filteredSongs by viewModel.filteredSongs.collectAsStateWithLifecycle()
-    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-    val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
-    val selectedPlaylist by viewModel.selectedPlaylist.collectAsStateWithLifecycle()
-    val isFullScreenOpen by viewModel.isFullScreenPlayerOpen.collectAsStateWithLifecycle()
-    val songToAddToPlaylist by viewModel.songToAddToPlaylist.collectAsStateWithLifecycle()
-    val showCreatePlaylistDialog by viewModel.showCreatePlaylistDialog.collectAsStateWithLifecycle()
-    val showEqualizer by viewModel.showEqualizer.collectAsStateWithLifecycle()
-    val showSettings by viewModel.showSettings.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val playbackSnapshot by viewModel.playbackSnapshot.collectAsStateWithLifecycle()
-    val equalizerState by viewModel.equalizerState.collectAsStateWithLifecycle()
-    val isVisualizerEnabled by viewModel.isVisualizerEnabled.collectAsStateWithLifecycle()
-    val listeningStats by viewModel.listeningStats.collectAsStateWithLifecycle()
-
-    val albums by viewModel.albums.collectAsStateWithLifecycle()
-    val artists by viewModel.artists.collectAsStateWithLifecycle()
-    val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val selectedAlbum by viewModel.selectedAlbum.collectAsStateWithLifecycle()
-    val selectedArtist by viewModel.selectedArtist.collectAsStateWithLifecycle()
-    val selectedFolder by viewModel.selectedFolder.collectAsStateWithLifecycle()
-
-    val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
-    val selectedSongForInfo by viewModel.selectedSongForInfo.collectAsStateWithLifecycle()
-    val songDetailedInfo by viewModel.songDetailedInfo.collectAsStateWithLifecycle()
-    val selectedSongForRingtone by viewModel.selectedSongForRingtone.collectAsStateWithLifecycle()
-    val showDuplicateFinderDialog by viewModel.showDuplicateFinderDialog.collectAsStateWithLifecycle()
-    val duplicateGroups by viewModel.duplicateGroups.collectAsStateWithLifecycle()
-    val showFolderBlacklistDialog by viewModel.showFolderBlacklistDialog.collectAsStateWithLifecycle()
-
-    val songForMoodTag by viewModel.songForMoodTag.collectAsStateWithLifecycle()
-    val showVaultDialog by viewModel.showVaultDialog.collectAsStateWithLifecycle()
-    val showStreamUrlDialog by viewModel.showStreamUrlDialog.collectAsStateWithLifecycle()
-    val showWrappedDialog by viewModel.showWrappedDialog.collectAsStateWithLifecycle()
-    val showAchievementsDialog by viewModel.showAchievementsDialog.collectAsStateWithLifecycle()
-    val audioQualityFilter by viewModel.audioQualityFilter.collectAsStateWithLifecycle()
     val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
+    val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
 
-    // Automatic storage permission request on first launch
-    val permissionsToRequest = remember {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val selectedPlaylist by viewModel.selectedPlaylist.collectAsStateWithLifecycle()
+
+    val selectedSongIds by viewModel.selectedSongIds.collectAsStateWithLifecycle()
+    val isInSelectionMode = selectedSongIds.isNotEmpty()
+
+    val playbackSnapshot by viewModel.playbackSnapshot.collectAsStateWithLifecycle()
+    val isFullScreenOpen by viewModel.isFullScreenPlayerOpen.collectAsStateWithLifecycle()
+
+    val statsPeriod by viewModel.statsPeriod.collectAsStateWithLifecycle()
+    val statsRankingMode by viewModel.statsRankingMode.collectAsStateWithLifecycle()
+    val statsOverview by viewModel.statsOverview.collectAsStateWithLifecycle()
+    val rankedSongs by viewModel.rankedSongs.collectAsStateWithLifecycle()
+
+    val userFeedbackMessage by viewModel.userFeedbackMessage.collectAsStateWithLifecycle()
+
+    // Dialog state for adding songs to a playlist
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var playlistForSongPicker by remember { mutableStateOf<Playlist?>(null) }
+
+    // User feedback toast/snackbar
+    LaunchedEffect(userFeedbackMessage) {
+        userFeedbackMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearUserFeedback()
+        }
+    }
+
+    // Permission launcher for audio files
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        viewModel.rescanSongs()
+    }
+
+    LaunchedEffect(Unit) {
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             arrayOf(
                 Manifest.permission.READ_MEDIA_AUDIO,
-                Manifest.permission.READ_MEDIA_VIDEO,
                 Manifest.permission.POST_NOTIFICATIONS
             )
         } else {
-            arrayOf(
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            )
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
+        permissionLauncher.launch(permissions)
     }
 
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val anyGranted = permissions.values.any { it }
-        if (anyGranted) {
-            viewModel.scanDeviceMedia()
-        }
-    }
-
-    var pendingCrashReport by remember { mutableStateOf<CrashReport?>(null) }
-
-    LaunchedEffect(Unit) {
-        storagePermissionLauncher.launch(permissionsToRequest)
-        withContext(Dispatchers.IO) {
-            val crash = CrashReportManager.checkAndConsumePendingCrash(context)
-            if (crash != null) {
-                withContext(Dispatchers.Main) {
-                    pendingCrashReport = crash
-                }
+    // Modal: Add selected songs from Songs Tab to a Playlist
+    if (showAddToPlaylistSheet) {
+        val selectedSongs = songs.filter { selectedSongIds.contains(it.id) }
+        AddToPlaylistBottomSheet(
+            playlists = playlists,
+            selectedSongs = selectedSongs,
+            onDismiss = { showAddToPlaylistSheet = false },
+            onPlaylistSelected = { pl ->
+                showAddToPlaylistSheet = false
+                viewModel.addSelectedSongsToPlaylist(pl.id, pl.name)
+            },
+            onCreateNewPlaylistAndAdd = { newName ->
+                showAddToPlaylistSheet = false
+                viewModel.createPlaylist(newName, selectedSongs)
             }
-        }
-    }
-
-    // Audio file picker launcher
-    val audioPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri> ->
-        if (uris.isNotEmpty()) {
-            uris.forEach { uri ->
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: Exception) {}
-            }
-            viewModel.addSongsFromUris(uris)
-        }
-    }
-
-    // Video file picker launcher
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri> ->
-        if (uris.isNotEmpty()) {
-            uris.forEach { uri ->
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: Exception) {}
-            }
-            viewModel.addVideosFromUris(uris)
-        }
-    }
-
-    // If video is selected, show built-in Video Player
-    selectedVideo?.let { video ->
-        VideoPlayerView(
-            video = video,
-            onClose = { viewModel.selectVideo(null) },
-            onSaveProgress = { id, pos -> viewModel.saveVideoProgress(id, pos) },
-            onAttachSubtitle = { id, sub -> viewModel.attachVideoSubtitle(id, sub) }
         )
-        return
     }
 
-    Box(
+    // Modal: Add songs inside a specific Playlist (Song Picker)
+    playlistForSongPicker?.let { pl ->
+        SongPickerDialog(
+            playlistName = pl.name,
+            allSongs = songs,
+            alreadyInPlaylistIds = pl.songs.map { it.id }.toSet(),
+            onDismiss = { playlistForSongPicker = null },
+            onAddSongs = { songsToAdd ->
+                viewModel.addSongsToPlaylist(pl.id, songsToAdd)
+                playlistForSongPicker = null
+            }
+        )
+    }
+
+    Scaffold(
         modifier = modifier
+            .testTag("main_scaffold")
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = MaterialTheme.colorScheme.background,
-            bottomBar = {
-                Column(
+            .background(Color(0xFF0B0B10)),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // MiniPlayer (floats immediately above bottom nav if a song is loaded)
+                if (playbackSnapshot.currentSong != null && !isFullScreenOpen) {
+                    MiniPlayer(
+                        snapshot = playbackSnapshot,
+                        onExpand = { viewModel.setFullScreenPlayerOpen(true) },
+                        onTogglePlayPause = { viewModel.playbackManager.togglePlayPause() },
+                        onSkipNext = { viewModel.playbackManager.skipNext() },
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+
+                // 3-Tab Bottom Navigation: Songs, Playlists, Stats
+                NavigationBar(
                     modifier = Modifier
+                        .testTag("bottom_nav_bar")
                         .fillMaxWidth()
-                        .navigationBarsPadding()
+                        .navigationBarsPadding(),
+                    containerColor = Color(0xFF14141B),
+                    tonalElevation = 0.dp
                 ) {
-                    // Mini-Player Docked above bottom navigation if music is playing
-                    if (playbackSnapshot.currentSong != null) {
-                        MiniPlayer(
-                            snapshot = playbackSnapshot,
-                            showQualityBadges = appSettings.showQualityBadges,
-                            onExpand = { viewModel.setFullScreenPlayerOpen(true) },
-                            onTogglePlayPause = { viewModel.playbackManager.togglePlayPause() },
-                            onSkipNext = { viewModel.playbackManager.skipNext() },
-                            onToggleFavorite = { viewModel.toggleFavorite(it) }
-                        )
-                    }
-
-                    // Refined Premium Bottom Navigation Bar
-                    NavigationBar(
-                        containerColor = SurfaceDark.copy(alpha = 0.95f),
-                        contentColor = TextPrimary,
-                        tonalElevation = 0.dp,
-                        modifier = Modifier.testTag("main_bottom_nav")
-                    ) {
-                        val isHome = mainBottomTab == MainBottomTab.HOME
-                        NavigationBarItem(
-                            selected = isHome,
-                            onClick = { viewModel.setMainBottomTab(MainBottomTab.HOME) },
-                            icon = {
-                                Icon(
-                                    imageVector = if (isHome) Icons.Default.Home else Icons.Outlined.Home,
-                                    contentDescription = "Home"
-                                )
-                            },
-                            label = { Text("Home", fontSize = 11.sp, fontWeight = if (isHome) FontWeight.SemiBold else FontWeight.Medium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryViolet,
-                                selectedTextColor = PrimaryViolet,
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary,
-                                indicatorColor = Color.Transparent
-                            ),
-                            modifier = Modifier.testTag("bottom_tab_home")
-                        )
-
-                        val isSearch = mainBottomTab == MainBottomTab.SEARCH
-                        NavigationBarItem(
-                            selected = isSearch,
-                            onClick = { viewModel.setMainBottomTab(MainBottomTab.SEARCH) },
-                            icon = {
-                                Icon(
-                                    imageVector = if (isSearch) Icons.Default.Search else Icons.Outlined.Search,
-                                    contentDescription = "Search"
-                                )
-                            },
-                            label = { Text("Search", fontSize = 11.sp, fontWeight = if (isSearch) FontWeight.SemiBold else FontWeight.Medium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryViolet,
-                                selectedTextColor = PrimaryViolet,
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary,
-                                indicatorColor = Color.Transparent
-                            ),
-                            modifier = Modifier.testTag("bottom_tab_search")
-                        )
-
-                        val isLibrary = mainBottomTab == MainBottomTab.LIBRARY
-                        NavigationBarItem(
-                            selected = isLibrary,
-                            onClick = { viewModel.setMainBottomTab(MainBottomTab.LIBRARY) },
-                            icon = {
-                                Icon(
-                                    imageVector = if (isLibrary) Icons.AutoMirrored.Filled.QueueMusic else Icons.AutoMirrored.Outlined.QueueMusic,
-                                    contentDescription = "Library"
-                                )
-                            },
-                            label = { Text("Library", fontSize = 11.sp, fontWeight = if (isLibrary) FontWeight.SemiBold else FontWeight.Medium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryViolet,
-                                selectedTextColor = PrimaryViolet,
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary,
-                                indicatorColor = Color.Transparent
-                            ),
-                            modifier = Modifier.testTag("bottom_tab_library")
-                        )
-
-                        val isVideos = mainBottomTab == MainBottomTab.VIDEOS
-                        NavigationBarItem(
-                            selected = isVideos,
-                            onClick = { viewModel.setMainBottomTab(MainBottomTab.VIDEOS) },
-                            icon = {
-                                Icon(
-                                    imageVector = if (isVideos) Icons.Default.Videocam else Icons.Outlined.Videocam,
-                                    contentDescription = "Videos"
-                                )
-                            },
-                            label = { Text("Videos", fontSize = 11.sp, fontWeight = if (isVideos) FontWeight.SemiBold else FontWeight.Medium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryViolet,
-                                selectedTextColor = PrimaryViolet,
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary,
-                                indicatorColor = Color.Transparent
-                            ),
-                            modifier = Modifier.testTag("bottom_tab_videos")
-                        )
-                    }
-                }
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .statusBarsPadding()
-            ) {
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = PrimaryViolet)
-                    }
-                } else {
-                    when (mainBottomTab) {
-                        MainBottomTab.HOME -> {
-                            HomeScreen(
-                                songs = songs,
-                                albums = albums,
-                                videos = videos,
-                                currentSongId = playbackSnapshot.currentSong?.id,
-                                isPlaying = playbackSnapshot.isPlaying,
-                                showQualityBadges = appSettings.showQualityBadges,
-                                onSongClick = { song, list ->
-                                    viewModel.playSongFromList(song, list)
-                                },
-                                onAlbumClick = {
-                                    viewModel.selectAlbum(it)
-                                    viewModel.setActiveTab(NavigationTab.ALBUMS)
-                                    viewModel.setMainBottomTab(MainBottomTab.LIBRARY)
-                                },
-                                onVideoClick = { viewModel.selectVideo(it) },
-                                onScanMedia = { viewModel.scanDeviceMedia() },
-                                onAddSongs = {
-                                    audioPickerLauncher.launch(
-                                        arrayOf("audio/*", "application/ogg", "application/x-flac")
-                                    )
-                                },
-                                onDemoTracks = { viewModel.generateSampleTracks() },
-                                onOpenEqualizer = { viewModel.setShowEqualizer(true) },
-                                onOpenSettings = { viewModel.setShowSettings(true) },
-                                onOpenWrapped = { viewModel.openWrappedDialog() },
-                                onOpenAchievements = { viewModel.openAchievementsDialog() },
-                                onSearchClick = { viewModel.setMainBottomTab(MainBottomTab.SEARCH) },
-                                autoScanEnabled = appSettings.autoScanEnabled
-                            )
-                        }
-
-                        MainBottomTab.SEARCH -> {
-                            SearchScreen(
-                                searchQuery = searchQuery,
-                                onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
-                                filteredSongs = filteredSongs,
-                                allSongs = songs,
-                                currentSongId = playbackSnapshot.currentSong?.id,
-                                isPlaying = playbackSnapshot.isPlaying,
-                                onSongClick = { song, list ->
-                                    viewModel.playSongFromList(song, list)
-                                },
-                                onToggleFavorite = { viewModel.toggleFavorite(it) },
-                                onAddToPlaylist = { viewModel.setSongToAddToPlaylist(it) },
-                                onDeleteSong = { viewModel.deleteSong(it) },
-                                onCategoryClick = { tab ->
-                                    viewModel.setActiveTab(tab)
-                                    viewModel.setMainBottomTab(MainBottomTab.LIBRARY)
-                                },
-                                onSongInfo = { viewModel.openSongInfo(it) },
-                                onShareSong = { MediaShareHelper.shareSong(context, it) },
-                                onCutRingtone = { viewModel.openRingtoneCutter(it) },
-                                onPlayNext = { viewModel.playNext(it) },
-                                onAddToQueue = { viewModel.addToQueue(it) },
-                                showQualityBadges = appSettings.showQualityBadges,
-                                reduceAnimations = appSettings.reduceAnimations
-                            )
-                        }
-
-                        MainBottomTab.LIBRARY -> {
-                            LibraryScreen(
-                                activeTab = activeTab,
-                                onTabSelected = { viewModel.setActiveTab(it) },
-                                songs = songs,
-                                albums = albums,
-                                artists = artists,
-                                folders = folders,
-                                playlists = playlists,
-                                selectedPlaylist = selectedPlaylist,
-                                selectedAlbum = selectedAlbum,
-                                selectedArtist = selectedArtist,
-                                selectedFolder = selectedFolder,
-                                currentSongId = playbackSnapshot.currentSong?.id,
-                                isPlaying = playbackSnapshot.isPlaying,
-                                showQualityBadges = appSettings.showQualityBadges,
-                                audioQualityFilter = audioQualityFilter,
-                                onAudioQualityFilterSelected = { viewModel.setAudioQualityFilter(it) },
-                                sortOption = sortOption,
-                                onSortOptionSelected = { viewModel.setSortOption(it) },
-                                onSelectPlaylist = { viewModel.selectPlaylist(it) },
-                                onSelectAlbum = { viewModel.selectAlbum(it) },
-                                onSelectArtist = { viewModel.selectArtist(it) },
-                                onSelectFolder = { viewModel.selectFolder(it) },
-                                onCreatePlaylistClick = { viewModel.setShowCreatePlaylistDialog(true) },
-                                onDeletePlaylist = { viewModel.deletePlaylist(it) },
-                                onPlayPlaylist = { pl, shuffle -> viewModel.playSelectedPlaylist(pl, shuffle) },
-                                onRemoveSongFromPlaylist = { plId, sId -> viewModel.removeSongFromPlaylist(plId, sId) },
-                                onSongClick = { song, list -> viewModel.playSongFromList(song, list) },
-                                onToggleFavorite = { viewModel.toggleFavorite(it) },
-                                onAddToPlaylist = { viewModel.setSongToAddToPlaylist(it) },
-                                onDeleteSong = { viewModel.deleteSong(it) },
-                                onPlayGroup = { list, idx -> viewModel.playGroup(list, idx) },
-                                onShuffleGroup = { list -> viewModel.shuffleGroup(list) },
-                                onSongInfo = { viewModel.openSongInfo(it) },
-                                onShareSong = { MediaShareHelper.shareSong(context, it) },
-                                onCutRingtone = { viewModel.openRingtoneCutter(it) },
-                                onPlayNext = { viewModel.playNext(it) },
-                                onAddToQueue = { viewModel.addToQueue(it) },
-                                onReorderPlaylistSongs = { id, list -> viewModel.reorderContainerSongs("playlist_$id", list) },
-                                onReorderFolderSongs = { key, list -> viewModel.reorderContainerSongs("folder_$key", list) },
-                                reduceAnimations = appSettings.reduceAnimations
-                            )
-                        }
-
-                        MainBottomTab.VIDEOS -> {
-                            VideoListView(
-                                videos = videos,
-                                showQualityBadges = appSettings.showQualityBadges,
-                                onVideoClick = { viewModel.selectVideo(it) },
-                                onAddVideosClick = {
-                                    videoPickerLauncher.launch(
-                                        arrayOf("video/mp4", "video/webm", "video/*")
-                                    )
-                                },
-                                onLoadDemoVideo = { viewModel.generateDemoVideo() },
-                                onDeleteVideo = { viewModel.deleteVideo(it) },
-                                onShareVideo = { MediaShareHelper.shareVideo(context, it) },
-                                onOpenStreamUrl = { viewModel.openStreamUrlDialog() },
-                                onOpenVault = { viewModel.openVaultDialog() }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Back Handler to collapse full-screen player
-        if (isFullScreenOpen) {
-            BackHandler {
-                viewModel.setFullScreenPlayerOpen(false)
-            }
-        }
-
-        // Animated Full-Screen Player Overlay
-        AnimatedVisibility(
-            visible = isFullScreenOpen && playbackSnapshot.currentSong != null,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-        ) {
-            FullScreenPlayer(
-                snapshot = playbackSnapshot,
-                showQualityBadges = appSettings.showQualityBadges,
-                onCollapse = { viewModel.setFullScreenPlayerOpen(false) },
-                onTogglePlayPause = { viewModel.playbackManager.togglePlayPause() },
-                onSkipNext = { viewModel.playbackManager.skipNext() },
-                onSkipPrevious = { viewModel.playbackManager.skipPrevious() },
-                onSeekTo = { viewModel.playbackManager.seekTo(it) },
-                onToggleShuffle = { viewModel.playbackManager.toggleShuffle() },
-                onCycleRepeat = { viewModel.playbackManager.cycleRepeatMode() },
-                onToggleFavorite = { viewModel.toggleFavorite(it) },
-                onAddToPlaylist = { viewModel.setSongToAddToPlaylist(it) },
-                onSelectQueueSong = { viewModel.playbackManager.playSong(it) },
-                onMoveQueueItem = { from, to -> viewModel.moveQueueItem(from, to) },
-                onSetPointA = { viewModel.setPointA() },
-                onSetPointB = { viewModel.setPointB() },
-                onClearABRepeat = { viewModel.clearABRepeat() },
-                onAttachLyrics = { songId, uri -> viewModel.setSongLyrics(songId, uri) },
-                isVisualizerEnabled = isVisualizerEnabled,
-                onSongInfo = { viewModel.openSongInfo(it) },
-                onShareSong = { MediaShareHelper.shareSong(context, it) },
-                onCutRingtone = { viewModel.openRingtoneCutter(it) },
-                onSetPlaybackSpeedAndPitch = { speed, pitch -> viewModel.setPlaybackSpeedAndPitch(speed, pitch) },
-                onTagMood = { viewModel.openMoodTagDialog(it) }
-            )
-        }
-
-        // Equalizer Full Overlay with Back Handler
-        if (showEqualizer) {
-            BackHandler { viewModel.setShowEqualizer(false) }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { viewModel.setShowEqualizer(false) },
-                            modifier = Modifier.minimumInteractiveComponentSize()
-                        ) {
+                    // Tab 1: Songs
+                    NavigationBarItem(
+                        selected = currentTab == MainTab.SONGS,
+                        onClick = { viewModel.setTab(MainTab.SONGS) },
+                        icon = {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = TextPrimary
+                                imageVector = if (currentTab == MainTab.SONGS) Icons.Default.MusicNote else Icons.Outlined.MusicNote,
+                                contentDescription = "Songs",
+                                modifier = Modifier.size(24.dp)
                             )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Audio Equalizer & FX",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
+                        },
+                        label = { Text("Songs", fontSize = 12.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryViolet,
+                            selectedTextColor = PrimaryViolet,
+                            unselectedIconColor = TextMuted,
+                            unselectedTextColor = TextMuted,
+                            indicatorColor = Color.Transparent
                         )
-                    }
-                    EqualizerScreen(
-                        equalizerState = equalizerState,
-                        onSetEnabled = { viewModel.setEqualizerEnabled(it) },
-                        onSetBassBoost = { viewModel.setBassBoost(it) },
-                        onSetVirtualizer = { viewModel.setVirtualizer(it) },
-                        onToggleVolumeNormalization = { viewModel.setVolumeNormalization(it) },
-                        onSetBandLevel = { idx, lvl -> viewModel.setEqualizerBandLevel(idx, lvl) },
-                        onSelectPreset = { viewModel.selectEqualizerPreset(it) },
-                        sleepTimerSecondsRemaining = playbackSnapshot.sleepTimerRemainingSeconds,
-                        onSetSleepTimer = { viewModel.setSleepTimer(it) },
-                        onCancelSleepTimer = { viewModel.cancelSleepTimer() }
+                    )
+
+                    // Tab 2: Playlists
+                    NavigationBarItem(
+                        selected = currentTab == MainTab.PLAYLISTS,
+                        onClick = { viewModel.setTab(MainTab.PLAYLISTS) },
+                        icon = {
+                            Icon(
+                                imageVector = if (currentTab == MainTab.PLAYLISTS) Icons.Default.QueueMusic else Icons.Outlined.QueueMusic,
+                                contentDescription = "Playlists",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
+                        label = { Text("Playlists", fontSize = 12.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryViolet,
+                            selectedTextColor = PrimaryViolet,
+                            unselectedIconColor = TextMuted,
+                            unselectedTextColor = TextMuted,
+                            indicatorColor = Color.Transparent
+                        )
+                    )
+
+                    // Tab 3: Stats
+                    NavigationBarItem(
+                        selected = currentTab == MainTab.STATS,
+                        onClick = { viewModel.setTab(MainTab.STATS) },
+                        icon = {
+                            Icon(
+                                imageVector = if (currentTab == MainTab.STATS) Icons.Default.BarChart else Icons.Outlined.BarChart,
+                                contentDescription = "Stats",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
+                        label = { Text("Stats", fontSize = 12.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryViolet,
+                            selectedTextColor = PrimaryViolet,
+                            unselectedIconColor = TextMuted,
+                            unselectedTextColor = TextMuted,
+                            indicatorColor = Color.Transparent
+                        )
                     )
                 }
             }
-        }
-
-        // Settings Full Overlay with Back Handler
-        if (showSettings) {
-            BackHandler { viewModel.setShowSettings(false) }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { viewModel.setShowSettings(false) },
-                            modifier = Modifier.minimumInteractiveComponentSize()
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = TextPrimary
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Settings & Themes",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        )
-                    }
-                    SettingsScreen(
-                        currentTheme = themeMode,
-                        onSelectTheme = { viewModel.setThemeMode(it) },
-                        isVisualizerEnabled = isVisualizerEnabled,
-                        onToggleVisualizer = { viewModel.setVisualizerEnabled(it) },
-                        appSettings = appSettings,
-                        onToggleAutoPause = { viewModel.setAutoPauseOnCallAndUnplug(it) },
-                        onToggleHeadsetDoublePress = { viewModel.setHeadsetDoublePressEnabled(it) },
-                        onToggleShakeToSkip = { viewModel.setShakeToSkipEnabled(it) },
-                        onToggleFilterShortAudio = { viewModel.setFilterShortAudioEnabled(it) },
-                        onSetMinAudioDuration = { viewModel.setMinAudioDurationSec(it) },
-                        onOpenFolderBlacklist = { viewModel.openFolderBlacklist() },
-                        onOpenDuplicateFinder = { viewModel.openDuplicateFinder() },
-                        onOpenRingtoneCutter = {
-                            val target = playbackSnapshot.currentSong ?: songs.firstOrNull()
-                            if (target != null) {
-                                viewModel.openRingtoneCutter(target)
+        },
+        containerColor = Color(0xFF0B0B10)
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            when (currentTab) {
+                MainTab.SONGS -> {
+                    SongsTabScreen(
+                        songs = filteredSongs,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                        currentSort = sortOption,
+                        onSortChange = { viewModel.setSortOption(it) },
+                        currentSongId = playbackSnapshot.currentSong?.id,
+                        isPlaying = playbackSnapshot.isPlaying,
+                        selectedSongIds = selectedSongIds,
+                        isInSelectionMode = isInSelectionMode,
+                        onSongClick = { song ->
+                            if (isInSelectionMode) {
+                                viewModel.toggleSongSelection(song.id)
                             } else {
-                                android.widget.Toast.makeText(context, "No songs available to trim", android.widget.Toast.LENGTH_SHORT).show()
+                                viewModel.playSong(song, filteredSongs)
                             }
                         },
-                        listeningStats = listeningStats,
-                        songCount = songs.size,
-                        videoCount = videos.size,
-                        playlistCount = playlists.size,
-                        onExportBackup = { viewModel.exportBackupJson() },
-                        onImportBackup = { viewModel.importBackupJson(it) },
-                        onToggleFadeInOut = { viewModel.setFadeInOutEnabled(it) },
-                        onToggleAutoFetchLyrics = { viewModel.setAutoFetchLyricsEnabled(it) },
-                        onToggleBackgroundVideoAudioOnly = { viewModel.setBackgroundVideoAudioOnly(it) },
-                        onToggleReduceAnimations = { viewModel.setReduceAnimations(it) },
-                        onToggleFetchOnlineCoverArt = { viewModel.setFetchOnlineCoverArt(it) },
-                        onToggleShowQualityBadges = { viewModel.setShowQualityBadges(it) },
-                        onOpenWrapped = { viewModel.openWrappedDialog() },
-                        onOpenAchievements = { viewModel.openAchievementsDialog() }
+                        onSongLongClick = { song ->
+                            viewModel.toggleSongSelection(song.id)
+                        },
+                        onSelectAll = { viewModel.selectAllSongs(filteredSongs) },
+                        onExitSelectionMode = { viewModel.clearSelection() },
+                        onAddSelectedToPlaylistClick = { showAddToPlaylistSheet = true }
+                    )
+                }
+
+                MainTab.PLAYLISTS -> {
+                    PlaylistsTabScreen(
+                        playlists = playlists,
+                        selectedPlaylist = selectedPlaylist,
+                        currentSongId = playbackSnapshot.currentSong?.id,
+                        isPlaying = playbackSnapshot.isPlaying,
+                        onSelectPlaylist = { pl -> viewModel.selectPlaylist(pl) },
+                        onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+                        onRenamePlaylist = { id, name -> viewModel.renamePlaylist(id, name) },
+                        onDeletePlaylist = { id -> viewModel.deletePlaylist(id) },
+                        onPlayPlaylist = { pl, startSong, isShuffle ->
+                            viewModel.playPlaylist(pl, startSong, isShuffle)
+                        },
+                        onRemoveSongsFromPlaylist = { plId, toRemove ->
+                            viewModel.removeSongsFromPlaylist(plId, toRemove)
+                        },
+                        onOpenSongPicker = { pl -> playlistForSongPicker = pl }
+                    )
+                }
+
+                MainTab.STATS -> {
+                    StatsTabScreen(
+                        overview = statsOverview,
+                        rankedSongs = rankedSongs,
+                        currentPeriod = statsPeriod,
+                        rankingMode = statsRankingMode,
+                        onPeriodChange = { viewModel.setStatsPeriod(it) },
+                        onRankingModeChange = { viewModel.setStatsRankingMode(it) },
+                        onSongClick = { song -> viewModel.playSong(song) },
+                        onResetStats = { viewModel.resetStatistics() }
                     )
                 }
             }
         }
+    }
 
-        // Dialogs
-        if (showCreatePlaylistDialog) {
-            CreatePlaylistDialog(
-                onDismiss = { viewModel.setShowCreatePlaylistDialog(false) },
-                onCreate = { name, desc -> viewModel.createPlaylist(name, desc) }
-            )
-        }
-
-        songToAddToPlaylist?.let { song ->
-            AddToPlaylistDialog(
-                song = song,
-                playlists = playlists,
-                onDismiss = { viewModel.setSongToAddToPlaylist(null) },
-                onPlaylistSelected = { playlistId ->
-                    viewModel.addSongToPlaylist(playlistId, song.id)
-                    viewModel.setSongToAddToPlaylist(null)
-                }
-            )
-        }
-
-        // Song Info Dialog
-        selectedSongForInfo?.let { song ->
-            SongInfoDialog(
-                song = song,
-                info = songDetailedInfo,
-                onDismiss = { viewModel.closeSongInfo() }
-            )
-        }
-
-        // Ringtone Cutter Dialog
-        selectedSongForRingtone?.let { song ->
-            RingtoneCutterDialog(
-                song = song,
-                onDismiss = { viewModel.closeRingtoneCutter() }
-            )
-        }
-
-        // Duplicate Song Finder Dialog
-        if (showDuplicateFinderDialog) {
-            DuplicateFinderDialog(
-                duplicateGroups = duplicateGroups,
-                onPlaySong = { viewModel.playbackManager.playSong(it) },
-                onDeleteSong = { viewModel.deleteSong(it) },
-                onAutoCleanGroup = { viewModel.autoCleanDuplicateGroup(it) },
-                onDismiss = { viewModel.closeDuplicateFinder() }
-            )
-        }
-
-        // Folder Blacklist Dialog
-        if (showFolderBlacklistDialog) {
-            FolderBlacklistDialog(
-                blacklistedFolders = appSettings.blacklistedFolders,
-                detectedFolders = folders.map { it.path }.filter { it.isNotBlank() },
-                onAddBlacklistFolder = { viewModel.addBlacklistedFolder(it) },
-                onRemoveBlacklistFolder = { viewModel.removeBlacklistedFolder(it) },
-                onDismiss = { viewModel.closeFolderBlacklist() }
-            )
-        }
-
-        // Feature 12: Mood Tag Dialog
-        songForMoodTag?.let { song ->
-            MoodTagDialog(
-                song = song,
-                onSaveMoods = { moods -> viewModel.setSongMoods(song.id, moods) },
-                onDismiss = { viewModel.closeMoodTagDialog() }
-            )
-        }
-
-        // Feature 10: Private Video Vault Dialog
-        if (showVaultDialog) {
-            VaultDialog(
-                vaultManager = viewModel.vaultManager,
-                onPlayVideo = { video ->
-                    viewModel.selectVideo(video)
-                    viewModel.closeVaultDialog()
-                },
-                onDismiss = { viewModel.closeVaultDialog() }
-            )
-        }
-
-        // Feature 9: Network Stream Player Dialog
-        if (showStreamUrlDialog) {
-            StreamUrlDialog(
-                onPlayUrl = { url, title ->
-                    viewModel.playNetworkStream(url, title)
-                    viewModel.closeStreamUrlDialog()
-                },
-                onDismiss = { viewModel.closeStreamUrlDialog() }
-            )
-        }
-
-        // Feature 11: BeatWave Wrapped Dialog
-        if (showWrappedDialog) {
-            BeatWaveWrappedDialog(
-                stats = listeningStats,
-                allSongs = songs,
-                onDismiss = { viewModel.closeWrappedDialog() }
-            )
-        }
-
-        // Feature 14: Achievements & Badges Dialog
-        if (showAchievementsDialog) {
-            AchievementsDialog(
-                achievements = viewModel.achievementManager.getAchievements(listeningStats),
-                onDismiss = { viewModel.closeAchievementsDialog() }
-            )
-        }
-
-        // Crash Report Prompt on Launch
-        pendingCrashReport?.let { crash ->
-            AlertDialog(
-                onDismissRequest = { pendingCrashReport = null },
-                containerColor = SurfaceDark,
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.BugReport,
-                            contentDescription = null,
-                            tint = PrimaryViolet
-                        )
-                        Text(
-                            text = "Crash Report Available",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        )
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "BeatWave recovered from an unexpected crash in your previous session (${crash.formattedTime}):",
-                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
-                        )
-                        Text(
-                            text = "${crash.exceptionType}: ${crash.exceptionMessage}",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = FontWeight.Medium,
-                                color = PrimaryViolet
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Would you like to share this crash report? No data is sent to any server.",
-                            style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            CrashReportManager.shareCrashReport(context, crash)
-                            pendingCrashReport = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryViolet)
-                    ) {
-                        Text("Share Report", color = Color.White)
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { pendingCrashReport = null }
-                    ) {
-                        Text("Dismiss", color = TextSecondary)
-                    }
-                }
-            )
-        }
+    // Full Screen Player Animated Overlay
+    AnimatedVisibility(
+        visible = isFullScreenOpen,
+        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+    ) {
+        FullScreenPlayer(
+            snapshot = playbackSnapshot,
+            onCollapse = { viewModel.setFullScreenPlayerOpen(false) },
+            onTogglePlayPause = { viewModel.playbackManager.togglePlayPause() },
+            onSkipNext = { viewModel.playbackManager.skipNext() },
+            onSkipPrevious = { viewModel.playbackManager.skipPrevious() },
+            onSeekTo = { viewModel.playbackManager.seekTo(it) },
+            onToggleShuffle = { viewModel.playbackManager.toggleShuffle() },
+            onCycleRepeatMode = { viewModel.playbackManager.cycleRepeatMode() }
+        )
     }
 }

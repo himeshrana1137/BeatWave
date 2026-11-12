@@ -1,6 +1,6 @@
 {
   "name": "BeatWave",
-  "description": "BeatWave music and video player with dark Spotify-style theme, background playback, and playlist management.",
+  "description": "BeatWave minimal, premium offline music player with custom playlists and listening statistics.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
